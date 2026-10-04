@@ -1,0 +1,19 @@
+# Godot caches, builds and local credentials
+.godot/
+build/
+dist/
+.DS_Store
+export_credentials.cfg
+export.cfg
+config/*.local.cfg
+steam_appid.txt
+*.p12
+*.pfx
+*.p8
+*.pem
+*.key
+*.cer
+*.mobileprovision
+.env
+.env.*
+!.env.example

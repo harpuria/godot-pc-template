@@ -1,0 +1,12 @@
+"DepotBuild"
+{
+	"DepotID" "MACOS_DEPOT_ID"
+	"FileMapping"
+	{
+		"LocalPath" "macos/*"
+		"DepotPath" "."
+		"recursive" "1"
+	}
+	"FileExclusion" "*.tmp"
+	"FileExclusion" "steam_appid.txt"
+}

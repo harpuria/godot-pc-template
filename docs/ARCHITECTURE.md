@@ -1,0 +1,59 @@
+# Architecture — PC Template 0.1.0
+
+## 레이어와 책임
+
+```text
+Game (game/)
+  ├─ 공통 Autoload: SaveManager, Settings, AudioManager, WindowManager,
+  │                InputManager, SceneManager, App
+  └─ App.store (StoreService)
+       └─ StoreAdapter / Debug Mock / 게임이 등록한 선택적 SDK Adapter
+            └─ Steam 등 외부 Plugin / Native SDK
+```
+
+게임 규칙·보상·저장 schema는 `game/` 소유다. App은 구성과 앱 수명만 관리한다. ESD 연결은 Adapter가 담당하며 게임에서 네이티브 singleton을 직접 호출하지 않는다. itch.io와 standalone은 SDK 없이 실행한다.
+
+## 초기화와 수명
+
+Autoload 순서는 [CODEBASE_MAP](CODEBASE_MAP.md)의 실행 흐름을 따른다. bootstrap은 `app/init_script` hook을 App 초기화 전에 실행하여 schema와 검증한 Adapter를 등록한다. hook은 인수 없는 동기 `before_app_initialize() -> Dictionary`이며 성공 결과는 `{"error": OK}`다. 서명·결과 오류, 명시적 실패, 런타임 오류는 App 초기화·저장 읽기·게임 진입을 차단한다. 정수 반환형의 런타임 오류 기본값이 `OK`와 같을 수 있어 필수 결과 필드로 정상 완료를 확인한다.
+
+`App.initialize()`는 한 번만 수행한다. 서비스 feature가 꺼져 있으면 SDK 초기화를 생략한다. Debug의 명시적 `mode=mock`은 Mock, Steam 채널의 `mode=native`와 등록한 Adapter 조합은 실제 연결을 선택한다. 나머지는 unavailable이며 게임 로컬 기능을 계속 사용할 수 있다. release에서는 Mock을 선택하거나 초기화하지 않는다.
+
+공통 관리자는 앱 수명이다. 장면 이동 뒤에도 살아 있으며 SceneManager는 전환 중복을 `ERR_BUSY`로 거절한다. 로딩 화면을 그릴 두 프레임 뒤에 메인 스레드에서 장면을 읽는다. 대형 리소스의 streaming은 별도 구현 범위다.
+
+## 저장 데이터와 설정
+
+- SaveManager: `user://saves/slot_1.json`의 `{version, data}` envelope, dirty 자동 저장과 순차 migration. JSON 호환 게임 데이터만 저장한다.
+- Settings: `user://settings.cfg`의 음량·언어·화면 옵션과 게임별 추가 설정.
+- InputManager: `user://input.cfg`의 입력 종류와 숫자 필드. arbitrary Object를 역직렬화하지 않는다.
+- JsonStore: 디렉터리 생성 → 같은 디렉터리의 `.tmp` 기록·flush → rename 교체.
+
+진행 저장의 parse·schema·migration 실패는 메모리와 원본을 보존하고 이후 쓰기를 차단한다. 미래 버전·분수 version도 거절한다. 정상 load 또는 사용자 선택 이후 `reset_slot()`로 차단을 해제한다. 설정과 바인딩도 손상 시 원본 교체를 차단하고 명시적 reset을 제공한다.
+
+Settings는 파일의 모든 값을 먼저 검증한다. 알려진 키의 타입·범위가 잘못되면 파일과 현재 메모리를 보존하고 변경 신호 없이 쓰기를 차단한다. `set_many()`도 디스크 저장 성공 후에만 메모리·locale·`changed`를 반영하여 실패한 후보가 활성 설정으로 남지 않는다.
+
+임시 파일 교체는 불완전한 쓰기를 줄이는 장치다. 여러 프로세스 동시 실행, 전원 차단의 완전한 복구, 암호화, 다중 슬롯, 서버 동기화, Steam 계정별 저장 분리는 제공하지 않는다. 게임이 이 요구를 가지면 별도 정책을 정의한다. 기본 autosave 30초이며 pause와 정상 종료 때 dirty 값을 flush한다.
+
+`app/data_directory`로 안정된 저장 위치를 사용한다. 표시 이름을 바꿔도 이 값은 유지한다. 기본 저장 형식은 양 OS가 공유할 수 있지만 Cloud 설정과 충돌 처리는 자동 구현이 아니다.
+
+## 화면 설정과 입력
+
+WindowManager는 windowed / borderless / exclusive fullscreen, 창 크기, VSync, FPS 제한을 담당한다. 후보는 저장 전에 적용하고 15초 뒤 자동 복구한다. 앱 수명의 확인창을 사용하므로 게임 장면과 독립적으로 확인할 수 있다. 확인 시 Settings 저장이 실패하면 이전 값으로 복구하고 `preview_failed(error)`를 보낸다. SettingsPanel은 이를 `operation_failed`로 전달한다. 자체 UI도 실패 신호를 구독한다. 창 모드 resize는 0.5초 뒤 기록한다. 화면 설정은 모니터·OS가 실제 지원하는 범위에 제약을 받는다.
+
+InputManager는 공통 action의 키보드/마우스 또는 게임패드 바인딩을 교체하며 다른 종류의 입력은 보존한다. 중복 바인딩을 거절하고 deadzone과 장치 변경 신호를 제공한다. `ui_*`는 기본 탐색을 보존한다. 리소스에서 정의한 기본 바인딩이 기준이며 configure가 기존 action을 덮어쓰지 않는다. 게임별 action과 컨트롤 표시·아이콘은 게임이 추가한다.
+
+캡처 중 Ctrl·Shift·Alt·Meta 단독 press/release는 소비하고 다음 조합 키를 기다린다. 수정키 단독 바인딩은 캡처 UI에서 제공하지 않으며 Escape는 조합 여부와 관계없이 취소한다.
+
+## Pause·포커스·종료
+
+App은 reason 집합으로 `menu`, `focus`, `overlay`, `quit_dialog` 등을 독립적으로 관리한다. 하나라도 있으면 SceneTree를 pause하고 마지막 이유를 해제할 때 재개한다. 외부 코드가 먼저 pause한 트리는 App이 재개하지 않는다. 공통 관리자·서비스와 조작할 메뉴는 `PROCESS_MODE_ALWAYS`로 동작한다.
+
+포커스 상실 시 저장한다. `pause_on_focus_loss`는 시뮬레이션 정지, `mute_on_focus_loss`는 오디오 정지를 독립적으로 결정한다. `menu`·`overlay`·`quit_dialog` 등 focus 외 pause는 오디오도 정지한다. 포커스 복귀는 다른 pause나 그 오디오 정지를 해제하지 않는다. SDK overlay callback도 별도 이유로 전달한다. AudioManager는 suspend 상태를 보관하여 이후 시작·재시작하는 BGM/SFX/UI에도 적용하고, 해제 시 재생을 재개한다.
+
+창 닫기는 `App.quit_requested`를 구독한 게임 UI가 처리한다. 구독자가 없으면 App이 정상 저장 후 종료한다. `request_quit()`의 저장 실패는 종료를 보류하고 `quit_failed`로 전달한다. 사용자가 저장 손실을 명시적으로 선택한 경우 `quit_without_saving()`을 호출한다. OS 강제 종료와 프로세스 중단에서 마지막 flush는 보장하지 않는다.
+
+## 선택적 ESD 요청
+
+StoreService는 논리 업적·리더보드 ID를 변환하고 한 번에 한 요청만 수락한다. 동기 반환값 OK는 요청 수락이며 실제 완료는 신호로 받는다. Adapter 결과는 request_id로 연결한다. timeout·중복·늦은 callback은 새로운 요청을 성공시키지 않는다.
+
+Mock은 세션 메모리에서만 업적·점수를 기록한다. 실제 계정·서버·UI를 제공하지 않고 결과에 `mock=true`가 붙는다. 실제 Adapter는 인증·stats readiness·점수 정책·callback·shutdown을 SDK 계약에 맞게 구현한다. Steam Cloud, DLC, DRM, 로비·매치메이킹은 현재 API 범위 밖이다. [STEAM](STEAM.md)의 연결 절차를 따른다.

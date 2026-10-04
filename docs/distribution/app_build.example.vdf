@@ -1,0 +1,13 @@
+"AppBuild"
+{
+	"AppID" "APP_ID"
+	"Desc" "PC game Windows and macOS build"
+	"BuildOutput" "../../build/steampipe-logs"
+	"ContentRoot" "../../build/steam-content"
+	"Preview" "1"
+	"Depots"
+	{
+		"WINDOWS_DEPOT_ID" "depot_windows.example.vdf"
+		"MACOS_DEPOT_ID" "depot_macos.example.vdf"
+	}
+}
