@@ -13,13 +13,12 @@
 | PC SVG 아이콘 | 이 템플릿에서 직접 작성 | 외부 자산 library 없음 | 로컬 asset |
 | Windows/macOS export templates | 엔진과 일치하는 4.7.2; [공식 archive](https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz) | Godot 및 포함된 제3자 license | 로컬 환경에 Windows x86_64 Debug/Release·macOS 설치 |
 | 외부 Godot addon / native SDK | 없음 | N/A | 미설치 |
-| RTK | 작업 환경의 명령 wrapper; 게임 런타임 dependency 아님 | 사용 환경 기준 | 프로젝트 export에 포함되지 않음 |
 
 Godot 버전의 세 출처는 `.godot-version`, `GameConfig.ENGINE_VERSION`, 설정 도구의 버전 guard이며 모두 4.7.2다. 엔진을 바꾸려면 모바일 프로젝트와 기준을 함께 결정하고 코드·export·문서의 일치 여부를 확인한다.
 
 ## 모바일 템플릿과의 관계
 
-참조: 로컬 `/Users/yhh/Workspace/godot-mobile-template`, 템플릿 0.2.0, commit `b7210d9601360903d970e953dde28948b346dcd3` (읽을 때 working tree clean).
+참조: godot-mobile-template 0.2.0, commit `b7210d9601360903d970e953dde28948b346dcd3` (읽을 때 working tree clean).
 
 SaveManager, JsonStore, AudioManager, SceneManager, AppLogger와 loading UI·데모 음원을 기반으로 PC 요구에 맞게 확장했다. 모바일 native addon·Android/iOS export·광고·인앱 결제·모바일 back/safe-area 코드는 가져오지 않았다. 원본 모바일 프로젝트는 수정하지 않았다.
 
@@ -37,7 +36,7 @@ Godot license는 게임과 함께 제공해야 하며 포함된 제3자 고지�
 엔진 버전을 변경하거나 고지 파일을 다시 만들 때:
 
 ```bash
-rtk proxy godot --headless --path . --script res://tools/write_engine_notices.gd
+godot --headless --path . --script res://tools/write_engine_notices.gd
 ```
 
 ## 선택적 도구와 SDK — Deferred

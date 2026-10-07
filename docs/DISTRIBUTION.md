@@ -4,10 +4,15 @@
 
 ## 공통 설정
 
-1. 모바일과 같은 Godot **4.7.2 Standard**와 **4.7.2 PC export templates**를 준비한다. 메뉴는 **Editor → Manage Export Templates**다.
-2. `config/game.cfg`의 게임 이름, 숫자 버전, 고정 저장 경로, 실행 파일 이름, macOS bundle ID와 실제 `game/main.tscn`을 설정한다.
+1. Godot **4.7.2 Standard**와 **4.7.2 PC export templates**를 준비한다. 메뉴는 **Editor → Manage Export Templates**다.
+2. `config/game.cfg`의 게임 이름, 숫자 버전, 고정 저장 경로, 실행 파일 이름, macOS bundle ID와 `main_scene="res://game/main.tscn"`을 설정한다. 아이콘은 [자주 하는 작업](HOWTO.md#앱-아이콘-바꾸기)을 따른다.
 3. 공개 게임 배포는 `[export] exclude_demo=true`로 두고, 게임 JSON·CSV 등의 파일은 `extra_include_filter`로 지정한다. 데모 장면·음원을 개발 저장소에서 지울 필요는 없다.
-4. `rtk proxy godot --headless --path . --script res://tools/configure.gd`를 실행한다.
+4. 설정을 반영한다.
+
+```bash
+godot --headless --path . --script res://tools/configure.gd
+```
+
 5. export된 파일로 양 OS의 새 사용자, 저장·불러오기·입력·화면 설정과 종료를 확인한다.
 
 템플릿 기본값은 데모를 포함한 시작 프로젝트다. 실행 파일 생성 자체와 게임의 최종 출시는 별도의 완료 조건이다.
@@ -30,10 +35,10 @@
 기본 대상은 x86_64다. Windows ARM native가 필요하면 별도 preset을 만들고 해당 엔진 template과 라이브러리 조합을 검증한다.
 
 ```bash
-rtk proxy godot --headless --path . --export-debug "Windows Standalone"
-rtk proxy godot --headless --path . --export-release "Windows Standalone"
-rtk proxy godot --headless --path . --export-release "Windows Itch"
-rtk proxy godot --headless --path . --export-release "Windows Steam"
+godot --headless --path . --export-debug "Windows Standalone"
+godot --headless --path . --export-release "Windows Standalone"
+godot --headless --path . --export-release "Windows Itch"
+godot --headless --path . --export-release "Windows Steam"
 ```
 
 Editor와 export binary는 별개다. 사용자 PC에는 Godot 설치가 필요 없다. 실제 exe의 실행·파일 경로·종료와 게임패드를 Windows 기기에서 확인한다. 최저 OS·GPU 사양은 게임과 renderer에 맞춰 정하고 실제 검증한 값만 스토어에 게시한다.
@@ -45,10 +50,10 @@ Editor와 export binary는 별개다. 사용자 PC에는 Godot 설치가 필요 
 기본 대상은 `universal`이다. 공식 templates의 Universal 2 `.app`은 Intel x86_64와 Apple Silicon arm64를 지원한다. ZIP 출력은 앱 번들의 실행 권한을 보존하는 배포 경로다. [Godot macOS export](https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_macos.html)
 
 ```bash
-rtk proxy godot --headless --path . --export-debug "macOS Standalone"
-rtk proxy godot --headless --path . --export-release "macOS Standalone"
-rtk proxy godot --headless --path . --export-release "macOS Itch"
-rtk proxy godot --headless --path . --export-release "macOS Steam"
+godot --headless --path . --export-debug "macOS Standalone"
+godot --headless --path . --export-release "macOS Standalone"
+godot --headless --path . --export-release "macOS Itch"
+godot --headless --path . --export-release "macOS Steam"
 ```
 
 기본 preset은 **Built-in ad-hoc 서명**, **공증 꺼짐**이다. 로컬 개발에 쓰는 초기값이며 공개 다운로드 배포용 Developer ID 서명·공증이 아니다. 공개 배포에서는 Apple Developer ID, 서명 도구와 notarization을 설정하고 결과를 확인한다. 인증서·토큰은 저장소 밖에 두며 native 라이브러리도 서명과 architecture 일치를 검증한다.
@@ -68,8 +73,8 @@ itch.io 배포는 별도 런타임 SDK가 필요 없다. Itch preset을 사용�
 butler를 사용하는 예시는 다음과 같다. `user/game`은 자신의 프로젝트로 교체한다. 이 명령은 실제 업로드하므로 배포 준비가 끝난 뒤 실행한다.
 
 ```bash
-rtk proxy butler push build/windows/itch user/game:windows --userversion 0.1.0
-rtk proxy butler push build/macos/itch/pc-template.zip user/game:mac --userversion 0.1.0
+butler push build/windows/itch user/game:windows --userversion 0.1.0
+butler push build/macos/itch/pc-template.zip user/game:mac --userversion 0.1.0
 ```
 
 채널 이름과 업로드 버전은 게임의 배포 정책으로 정한다. 업로드 후 itch.io 앱 설치와 브라우저 다운로드를 각각 확인한다. butler는 폴더·ZIP을 받고 채널 이름에서 OS를 판별하므로 `windows`, `mac`처럼 플랫폼이 분명한 이름을 사용한다. [butler 업로드 문서](https://itch.io/docs/butler/pushing.html)
