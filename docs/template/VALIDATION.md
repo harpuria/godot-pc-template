@@ -1,6 +1,32 @@
-# Validation — 2026-10-04
+# Validation
 
-Template 0.1.0 및 미출시 보완의 실제 실행 기록이다. 모바일 프로젝트의 검증 결과를 PC 결과로 승계하지 않는다.
+Template 0.1.0 및 미출시 보완의 실제 실행 기록이다. 최신 기록이 위에 있다. 다른 템플릿(모바일 등)이나 다른 OS의 결과를 승계하지 않는다.
+
+## 개발 착수 보완 검증 — 2026-10-07
+
+pause 메뉴·종료 대화상자, 입력 action 등록·주/보조 칸, `game/` 골격·Theme·버스 레이아웃, Linux preset, `tools/validate.sh`·CI를 추가한 뒤 실행했다. 이번 결과는 **Linux 환경**의 결과이며 Windows/macOS 실행으로 간주하지 않는다.
+
+환경: Linux x86_64 컨테이너, Godot `4.7.2.stable.official.ed1daf0bf` 공식 Linux 바이너리, 공식 4.7.2 archive의 Linux x86_64 Debug/Release templates. GUI는 Xvfb + Mesa llvmpipe(OpenGL 4.5, Compatibility). 사운드 장치가 없어 Godot이 dummy 오디오 드라이버로 대체했다(ALSA `ERR_CANT_OPEN` 로그 1건은 이 환경 원인).
+
+| 검사 | 결과 |
+| --- | --- |
+| `tools/validate.sh` (새 clone, `.godot` 없음) | import PASS; integration 기본 / `--disabled` / `--native` 각각 **182 checks, 0 failures**; bootstrap 실패 2종 `entry_blocked=true message_shown=true` 후 창 닫기 요청으로 종료; 전체 exit 0 |
+| Xvfb GUI `--capture` | **191 checks, 0 failures**, exit 0 (화면 미리보기·rollback·확인 실패 경로 포함) |
+| `validate.sh` 실패 감지 | 통합 검사에 `push_error`를 주입하면 Godot exit 0이어도 3건 FAIL·exit 1; Godot 경로가 없으면 exit 1 |
+| configure | 9 preset 생성, 두 번 실행해도 `project.godot`·`export_presets.cfg` 변경 없음; 기존 Windows/macOS preset 내용 유지; 7번 자리에 다른 이름 preset이 있으면 exit 1이고 파일 미변경 |
+| Linux export | Standalone Debug + Standalone/Itch/Steam Release 모두 exit 0, 오류 없음. configure 전(`build/` 없음)에는 "export path doesn't exist"로 실패함을 확인하고 문서에 반영 |
+| Linux 실행 파일 | 네 실행 파일 headless 시작·종료 exit 0. Debug는 `Channel=standalone Mock=true` |
+| Linux Release 채널 검사 | 임시 복사본에서 확인 장면을 `game/`에 두고 `exclude_demo=true`로 export: 세 preset이 각각 `standalone`·`itch`·`steam`, `debug=false`, Store Mock 아님, 직접 만든 Mock도 초기화 실패, `config/game.cfg` 포함, tests·docs·데모 제외 |
+| 화면 확인 | Xvfb 캡처로 데모, pause 메뉴, pause 메뉴 안 설정 패널의 배치와 Theme 적용을 눈으로 확인 |
+
+추가한 회귀 검사: pause 이유 변경 신호, PauseMenu 열기·닫기·외부 이유 동기화·pause action 전환, 게임 종료 처리기가 없을 때 저장 실패 대화상자 표시와 머무르기, `quit_failed` 구독 시 기본 대화상자 생략, 주/보조 칸 재설정·중복 거절·캡처 칸 지정, `register_action`(등록·중복·`ui_*`·잘못된 기본값 거절, 저장·재로드, 미등록 action 저장값 보존 후 등록 시 적용, reset), `load_failed` 신호, `game/` 골격 진입과 init hook, 버스 레이아웃, 기본 Theme.
+
+확인하지 않은 범위:
+
+- 새 UI·입력 변경의 Windows/macOS 실행, 실제 Steam Deck·Linux 데스크톱 사람 조작, 실제 게임패드.
+- 창 닫기는 `NOTIFICATION_WM_CLOSE_REQUEST` 전달로 검사했다. 실제 창 관리자의 X 버튼 클릭은 아니다.
+- GitHub Actions 워크플로는 로컬에서 같은 단계를 재현했으며, GitHub 러너에서의 실행은 저장소에 push된 뒤 첫 실행으로 확인한다(워크플로는 `main` push와 PR에서 실행).
+- Windows/macOS export는 이번에 다시 실행하지 않았다. 해당 preset 내용은 바뀌지 않았다.
 
 ## 검토 후 보완 검증 — 2026-10-04
 
@@ -32,7 +58,7 @@ Release 실패 검사는 임시 프로젝트 복사본에서 검사 장면과 fi
 - macOS / Apple M1. GUI renderer: `OpenGL API 4.1 Metal - 90.5`, Compatibility.
 - 공식 4.7.2 archive에서 Windows x86_64 Debug/Release·macOS templates를 설치했다. 기존 Android/iOS templates는 유지했다.
 - 추가 Godot plugin, Steam SDK, butler는 이 프로젝트에 설치하지 않았다.
-- 처음에 비어 있는 로컬 폴더였으며 Git repository·remote·tag 생성은 하지 않았다.
+- 0.1.0 제작 당시에는 비어 있는 로컬 폴더였으며 Git repository·remote·tag를 만들지 않았다. 이후 GitHub 저장소로 공개했다.
 
 ## 최초 0.1.0 제작 시 실행 결과
 

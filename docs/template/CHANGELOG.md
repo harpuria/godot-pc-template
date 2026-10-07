@@ -9,7 +9,7 @@
 - `game/` 골격(`main.tscn`, `main.gd`, `game_init.gd`)과 `init_script` 기본 연결, 에디터에서 보이는 `default_bus_layout.tres`, 프로젝트 기본 Theme(`ui/theme/default_theme.tres`).
 - Linux x86_64 export preset 3종(Standalone·Itch·Steam)과 SteamPipe Linux depot 예시. configure는 preset 0~8번을 소유하며 다른 이름의 preset을 덮어쓰지 않는다.
 - `tools/validate.sh` 공통 회귀 검사 스크립트와 GitHub Actions CI(`.github/workflows/validate.yml`).
-- 문서: RTK 명령 제거, `docs/HOWTO.md` 단계별 안내 추가, DEVELOPMENT를 참고 문서·용어 표로 정리, APPLYING을 GitHub 저장소 기준으로 변경, STEAM의 잘못된 기본 저장 경로 설명 수정.
+- 문서: 셸 명령을 일반 `godot`·`git` 명령으로 통일, `docs/HOWTO.md` 단계별 안내 추가, DEVELOPMENT를 참고 문서·용어 표로 정리, APPLYING을 GitHub 저장소 기준으로 변경, STEAM의 잘못된 기본 저장 경로 설명 수정.
 
 기존 게임 적용:
 
