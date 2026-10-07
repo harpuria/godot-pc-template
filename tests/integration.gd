@@ -67,6 +67,7 @@ func _run() -> void:
 	_settings_checks()
 	_input_checks()
 	_pause_checks()
+	await _quit_checks()
 	await _service_checks()
 	await _display_checks()
 	await _audio_checks()
@@ -241,6 +242,50 @@ func _pause_checks() -> void:
 	GameConfig.config.set_value("lifecycle", "pause_on_focus_loss", pause_on_focus)
 	GameConfig.config.set_value("lifecycle", "mute_on_focus_loss", mute_on_focus)
 	AudioManager.stop_bgm()
+
+func _quit_checks() -> void:
+	var reason_events: Array[String] = []
+	var reason_listener := func(reason: String, active: bool): reason_events.append("%s:%s" % [reason, active])
+	App.pause_reason_changed.connect(reason_listener)
+	App.set_paused("menu", true)
+	App.set_paused("menu", true)
+	App.set_paused("menu", false)
+	_check(reason_events == ["menu:true", "menu:false"], "Pause reason changes are reported once per transition")
+	App.pause_reason_changed.disconnect(reason_listener)
+	var menu := PauseMenu.new()
+	add_child(menu)
+	menu.open()
+	_check(menu.is_open() and get_tree().paused, "Pause menu opens and pauses")
+	menu.close()
+	_check(not menu.is_open() and not get_tree().paused, "Pause menu closes and resumes")
+	App.set_paused("menu", true)
+	_check(menu.is_open(), "Pause menu follows external menu reason")
+	App.set_paused("menu", false)
+	var pause_event := InputEventAction.new()
+	pause_event.action = &"pause"
+	pause_event.pressed = true
+	menu._unhandled_input(pause_event)
+	_check(menu.is_open(), "Pause action opens the menu")
+	menu._unhandled_input(pause_event)
+	_check(not menu.is_open() and not get_tree().paused, "Pause action closes the menu")
+	menu.queue_free()
+	await get_tree().process_frame
+	# 게임 UI가 종료 신호를 처리하지 않아도 저장 실패 시 창 닫기가 막히지 않아야 한다.
+	_check(App.quit_requested.get_connections().is_empty() and App.quit_failed.get_connections().is_empty(), "No game quit handlers before fallback check")
+	SaveManager.write_blocked = true
+	SaveManager.set_value("quit_probe", 1)
+	App.notification(NOTIFICATION_WM_CLOSE_REQUEST)
+	_check(App.dialogs.is_open() and App.has_pause_reason("quit_dialog") and get_tree().paused, "Unhandled close with failed save shows fallback dialog")
+	App.dialogs._failure.get_ok_button().pressed.emit()
+	_check(not App.dialogs.is_open() and not App.has_pause_reason("quit_dialog") and not get_tree().paused, "Staying after save failure resumes the game")
+	var reported: Array[int] = []
+	var failure_listener := func(error: int): reported.append(error)
+	App.quit_failed.connect(failure_listener)
+	_check(App.request_quit() == ERR_UNAUTHORIZED and reported == [ERR_UNAUTHORIZED] and not App.dialogs.is_open(), "Game quit_failed handler replaces fallback dialog")
+	App.quit_failed.disconnect(failure_listener)
+	SaveManager.write_blocked = false
+	SaveManager.data.erase("quit_probe")
+	_check(SaveManager.flush() == OK, "Save writable after quit checks")
 
 func _service_checks() -> void:
 	var disabled := StoreService.new()

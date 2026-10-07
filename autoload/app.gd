@@ -7,8 +7,11 @@ signal resumed
 signal quit_requested
 signal quit_failed(error: int)
 signal quitting
+signal pause_reason_changed(reason: String, active: bool)
 var ready_for_game := false
 var store: StoreService
+## 앱 수명의 종료 확인·저장 실패 대화상자. 게임 UI가 신호를 처리하지 않을 때 기본으로 사용한다.
+var dialogs := QuitDialogs.new()
 var _registered_store_adapter: StoreAdapter
 var _pause_reasons: Dictionary = {}
 var _audio_reasons: Dictionary = {}
@@ -16,6 +19,7 @@ var _owns_tree_pause := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(dialogs)
 
 ## 게임 init hook에서 검증한 Adapter를 등록한다. App 초기화 뒤에는 교체하지 않는다.
 func register_store_adapter(adapter: StoreAdapter) -> Error:
@@ -55,6 +59,7 @@ func initialize() -> void:
 ## 다른 코드가 먼저 pause한 SceneTree는 App이 임의로 재개하지 않는다.
 func set_paused(reason: String, enabled: bool) -> void:
 	var was_paused := not _pause_reasons.is_empty()
+	var was_active := _pause_reasons.has(reason)
 	if enabled:
 		_pause_reasons[reason] = true
 	else:
@@ -71,6 +76,8 @@ func set_paused(reason: String, enabled: bool) -> void:
 		_owns_tree_pause = false
 		resumed.emit()
 	_update_audio()
+	if was_active != enabled:
+		pause_reason_changed.emit(reason, enabled)
 
 ## 특정 pause 이유가 활성화되어 있는지 반환한다.
 func has_pause_reason(reason: String) -> bool:
@@ -78,6 +85,9 @@ func has_pause_reason(reason: String) -> bool:
 
 func _notification(what: int) -> void:
 	if not ready_for_game:
+		# 초기화 전이나 init hook 실패 후에는 저장할 진행이 없으므로 창 닫기를 바로 허용한다.
+		if what == NOTIFICATION_WM_CLOSE_REQUEST:
+			get_tree().quit()
 		return
 	match what:
 		NOTIFICATION_APPLICATION_FOCUS_OUT:
@@ -108,10 +118,13 @@ func _update_audio() -> void:
 	AudioManager.set_suspended(suspend_for_pause or not _audio_reasons.is_empty())
 
 ## 변경된 진행을 저장한 후 종료한다. 실패하면 UI가 복구를 선택할 수 있도록 종료를 보류한다.
+## quit_failed를 구독한 곳이 없으면 기본 저장 실패 대화상자를 표시한다.
 func request_quit() -> Error:
 	var error := SaveManager.flush()
 	if error != OK:
 		quit_failed.emit(error)
+		if quit_failed.get_connections().is_empty():
+			dialogs.show_save_failure(error)
 		return error
 	WindowManager.revert_preview()
 	quitting.emit()

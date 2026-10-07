@@ -8,13 +8,23 @@ func _ready() -> void:
 	var error := run_init_script(path)
 	if error != OK:
 		push_error("Game init script failed (%s): %s" % [error_string(error), path])
-		# 저장 schema나 Adapter 등록이 빠진 상태로 게임을 시작하지 않는다.
+		# 저장 schema나 Adapter 등록이 빠진 상태로 게임을 시작하지 않는다. 창은 닫을 수 있다.
+		_show_failure("The game could not start (%s).\nCheck the log for details." % error_string(error))
 		return
 	App.initialize()
 	var scene := str(GameConfig.value("app", "main_scene", "res://scenes/main.tscn"))
 	error = SceneManager.change_scene(scene)
 	if error != OK:
 		push_error("Cannot open main scene: %s" % scene)
+		_show_failure("Cannot open the main scene:\n%s" % scene)
+
+func _show_failure(message: String) -> void:
+	var label := Label.new()
+	label.text = message
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(label)
 
 ## RefCounted 초기화 script의 계약을 검사하고 hook을 한 번 호출한다.
 static func run_init_script(path: String) -> Error:

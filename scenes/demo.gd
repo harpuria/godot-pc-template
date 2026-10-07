@@ -3,9 +3,7 @@ extends Control
 
 var _status := Label.new()
 var _device := Label.new()
-var _quit_dialog := ConfirmationDialog.new()
-var _error_dialog := AcceptDialog.new()
-var _pause_button: Button
+var _pause_menu := PauseMenu.new()
 var _save_count := 0
 
 func _ready() -> void:
@@ -31,10 +29,10 @@ func _ready() -> void:
 	header.add_child(title)
 	var quit_button := Button.new()
 	quit_button.text = "Quit"
-	quit_button.pressed.connect(_show_quit)
+	quit_button.pressed.connect(App.dialogs.confirm_quit)
 	header.add_child(quit_button)
 	var subtitle := Label.new()
-	subtitle.text = "Godot %s · Windows / macOS · %s · %s" % [GameConfig.ENGINE_VERSION, App.store.channel,
+	subtitle.text = "Godot %s · %s · %s · %s" % [GameConfig.ENGINE_VERSION, DesktopPlatform.current(), App.store.channel,
 		"Development Mock" if App.store.is_mock() else ("Store connected" if App.store.available else "Local play")]
 	layout.add_child(subtitle)
 	_status.text = "Ready. Save files live in your user data folder."
@@ -64,7 +62,7 @@ func _ready() -> void:
 	_button(actions, "Stop BGM", AudioManager.stop_bgm)
 	_button(actions, "Play SFX", func(): AudioManager.play_sfx(preload("res://assets/demo/tone.wav")))
 	_button(actions, "Play UI sound", func(): AudioManager.play_ui(preload("res://assets/demo/tone.wav")))
-	_pause_button = _button(actions, "Pause / resume", _toggle_pause)
+	_button(actions, "Open pause menu", _pause_menu.open)
 	_button(actions, "Scene transition", func():
 		App.set_paused("menu", false)
 		SceneManager.change_scene("res://scenes/transition_demo.tscn"))
@@ -88,26 +86,10 @@ func _ready() -> void:
 	InputManager.device_changed.connect(_update_device)
 	InputManager.controller_connection_changed.connect(func(_id: int, _connected: bool): _update_device(InputManager.active_device))
 	SaveManager.save_failed.connect(func(error: int): _log("Save failed: " + error_string(error)))
-	App.paused.connect(func(): _pause_button.text = "Resume (Esc / Start)")
-	App.resumed.connect(func(): _pause_button.text = "Pause / resume")
-	_quit_dialog.title = "Quit game?"
-	_quit_dialog.dialog_text = "Your progress will be saved before quitting."
-	_quit_dialog.ok_button_text = "Save and quit"
-	_quit_dialog.confirmed.connect(func(): App.request_quit())
-	_quit_dialog.canceled.connect(func(): App.set_paused("quit_dialog", false))
-	add_child(_quit_dialog)
-	_error_dialog.title = "Progress could not be saved"
-	_error_dialog.add_button("Quit without saving", false, "discard")
-	_error_dialog.custom_action.connect(func(action: StringName):
-		if action == &"discard":
-			App.quit_without_saving())
-	_error_dialog.confirmed.connect(func(): App.set_paused("quit_dialog", false))
-	_error_dialog.canceled.connect(func(): App.set_paused("quit_dialog", false))
-	add_child(_error_dialog)
-	App.quit_requested.connect(_show_quit)
-	App.quit_failed.connect(func(error: int):
-		_error_dialog.dialog_text = "Save failed: %s\nYou can stay and retry, or quit without saving." % error_string(error)
-		_error_dialog.popup_centered(Vector2i(460, 200)))
+	# 재사용 pause 메뉴: Esc / Start로 열고 닫는다. 저장 실패 대화상자는 App.dialogs가 기본 제공한다.
+	_pause_menu.operation_failed.connect(func(error: int): _log("Settings: " + error_string(error)))
+	add_child(_pause_menu)
+	App.quit_requested.connect(_on_quit_requested)
 	if SaveManager.write_blocked:
 		_log("Save could not be loaded. Original file preserved; writing is blocked.")
 	first.grab_focus()
@@ -137,12 +119,8 @@ func _load_test() -> void:
 	var error := SaveManager.load_slot()
 	_log("Loaded demo_count=%s" % SaveManager.data.get("demo_count", 0) if error == OK else "Load failed: " + error_string(error))
 
-func _show_quit() -> void:
-	App.set_paused("quit_dialog", true)
-	_quit_dialog.popup_centered(Vector2i(420, 160))
-
-func _toggle_pause() -> void:
-	App.set_paused("menu", not App.has_pause_reason("menu"))
+func _on_quit_requested() -> void:
+	App.dialogs.confirm_quit()
 
 func _update_device(device: String) -> void:
 	_device.text = "Active input: %s · controllers: %d" % [device, Input.get_connected_joypads().size()]
@@ -152,8 +130,5 @@ func _log(message: String) -> void:
 	AppLogger.info("Demo", message)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("pause") and not event.is_echo() and InputManager.capturing.is_empty():
-		_toggle_pause()
-		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("primary_action") and not event.is_echo():
+	if event.is_action_pressed("primary_action") and not event.is_echo():
 		_log("Primary action received from " + InputManager.active_device)
