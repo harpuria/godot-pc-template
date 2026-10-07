@@ -1,5 +1,24 @@
 # Changelog
 
+## 미출시 — 개발 착수 보완 (2026-10-07)
+
+- 재사용 UI: `PauseMenu`(Esc / Start, 계속하기·설정·종료)와 `QuitDialogs`(종료 확인, 저장 실패 시 머무르기·재시도·저장 없이 종료). App이 기본 인스턴스 `App.dialogs`를 소유한다.
+- 창 닫기: `quit_failed` 구독자가 없으면 기본 저장 실패 대화상자를 표시한다. 초기화 전·init hook 실패 후에는 창 닫기를 바로 허용한다. init 실패 시 화면에 오류 문구를 표시한다.
+- `App.pause_reason_changed(reason, active)` 신호 추가.
+- 입력: `InputManager.register_action()`으로 게임 action을 재설정·저장 대상에 추가. 장치 종류별 주·보조 두 칸 재설정(`rebind(action, event, slot)`, `start_capture(action, slot)`), `load_failed` 신호, `slot_events()`·`slot_text()`·`event_text()`. `DefaultInput.key/mouse/button/axis` 공개.
+- `game/` 골격(`main.tscn`, `main.gd`, `game_init.gd`)과 `init_script` 기본 연결, 에디터에서 보이는 `default_bus_layout.tres`, 프로젝트 기본 Theme(`ui/theme/default_theme.tres`).
+- Linux x86_64 export preset 3종(Standalone·Itch·Steam)과 SteamPipe Linux depot 예시. configure는 preset 0~8번을 소유하며 다른 이름의 preset을 덮어쓰지 않는다.
+- `tools/validate.sh` 공통 회귀 검사 스크립트와 GitHub Actions CI(`.github/workflows/validate.yml`).
+- 문서: RTK 명령 제거, `docs/HOWTO.md` 단계별 안내 추가, DEVELOPMENT를 참고 문서·용어 표로 정리, APPLYING을 GitHub 저장소 기준으로 변경, STEAM의 잘못된 기본 저장 경로 설명 수정.
+
+기존 게임 적용:
+
+- `InputManager.ACTIONS`는 `COMMON_ACTIONS`(템플릿 기본 action)와 `actions()`(등록된 전체 목록)로 나뉘었다. 게임 action을 다루려고 `ACTIONS`를 직접 수정했다면 되돌리고 init hook에서 `register_action()`을 호출한다.
+- `rebind()`는 이제 같은 장치 종류의 지정한 칸(기본 0번)만 교체한다. 이전에는 같은 종류의 입력을 모두 지우고 하나만 남겼다.
+- `quit_failed`를 구독하지 않던 게임은 저장 실패 시 기본 대화상자가 뜬다. 직접 UI를 제공하던 게임은 동작이 같다.
+- export preset 6~8번에 직접 만든 preset이 있다면 9번 이후로 옮긴 뒤 configure를 실행한다. 그대로 두면 configure가 실패하고 파일을 바꾸지 않는다.
+- 데모(`scenes/demo.gd`)의 자체 종료 대화상자는 `App.dialogs`로 대체되었다.
+
 ## 미출시 — 검증 후 보완 (2026-10-04)
 
 - 초기화 hook을 `before_app_initialize() -> Dictionary` / `{"error": OK}` 계약으로 변경. 서명·결과·런타임 실패 시 App·저장·장면 진입 차단.
@@ -29,4 +48,4 @@ Godot **4.7.2 Standard**를 사용하는 첫 PC 공통 템플릿이다. 모바�
 
 표시 이름·게임 version·bundle ID·executable_name·main_scene을 바꾸고 `data_directory`는 출시 후 고정한다. 게임 schema는 init hook에 등록한다. 게임 배포에서 데모를 제외하고 실제 Windows/macOS export와 서명·ESD를 검증한다. 첫 버전은 외부 native 기능과 스토어 출시까지 확인한 상태가 아니다.
 
-원격 repository·tag·commit 생성은 이 로컬 프로젝트 제작 범위에 포함하지 않았다.
+0.1.0은 로컬 프로젝트로 제작했고, 이후 GitHub 저장소(<https://github.com/harpuria/godot-pc-template>)로 공개했다.

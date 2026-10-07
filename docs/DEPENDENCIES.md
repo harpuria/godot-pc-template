@@ -11,7 +11,7 @@
 | PC 공통 관리자·StoreService·Mock | 이 저장소 0.1.0 | 템플릿 자체의 외부 배포 license는 별도 결정 | In-repo |
 | 데모 WAV | 모바일 템플릿의 자체 생성 사인파 | 외부 자산 library 없음 | 로컬 asset |
 | PC SVG 아이콘 | 이 템플릿에서 직접 작성 | 외부 자산 library 없음 | 로컬 asset |
-| Windows/macOS export templates | 엔진과 일치하는 4.7.2; [공식 archive](https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz) | Godot 및 포함된 제3자 license | 로컬 환경에 Windows x86_64 Debug/Release·macOS 설치 |
+| Windows/macOS/Linux export templates | 엔진과 일치하는 4.7.2; [공식 archive](https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz) | Godot 및 포함된 제3자 license | 로컬 macOS 환경에 Windows x86_64 Debug/Release·macOS 설치; Linux x86_64 Debug/Release는 Linux 검증 환경에 설치 |
 | 외부 Godot addon / native SDK | 없음 | N/A | 미설치 |
 
 Godot 버전의 세 출처는 `.godot-version`, `GameConfig.ENGINE_VERSION`, 설정 도구의 버전 guard이며 모두 4.7.2다. 엔진을 바꾸려면 모바일 프로젝트와 기준을 함께 결정하고 코드·export·문서의 일치 여부를 확인한다.
@@ -55,4 +55,4 @@ godot --headless --path . --script res://tools/write_engine_notices.gd
 
 README BOM과 이 문서에 이름·정확한 버전·release URL/commit·source·license·native SDK 버전·architecture·Godot **4.7.2** 호환 근거를 기록한다. 설치 방법, 플랫폼별 binary, 업데이트 이유와 검증일도 남긴다.
 
-Verified는 Windows/macOS의 실제 export·실행 및 해당 기능의 확인이 끝난 조합에만 사용한다. 업스트림의 지원 범위만 확인한 상태는 프로젝트 Unverified로 기록한다. 자격 증명·서명 파일은 Git에 포함하지 않는다.
+Verified는 Windows/macOS/Linux의 실제 export·실행 및 해당 기능의 확인이 끝난 조합에만 사용한다. 업스트림의 지원 범위만 확인한 상태는 프로젝트 Unverified로 기록한다. 자격 증명·서명 파일은 Git에 포함하지 않는다.

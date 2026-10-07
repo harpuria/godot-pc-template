@@ -39,6 +39,7 @@ project.godot
 | ESD 서비스·외부 SDK | `docs/STEAM.md`, `docs/DEPENDENCIES.md`, `services/store/` |
 | 게임 이름·버전·저장 위치·bundle | `config/game.cfg`, `tools/configure.gd` |
 | export preset·서명·패키징·업로드 | `docs/DISTRIBUTION.md`, `export_presets.cfg`, `docs/distribution/` |
+| 회귀 검사·CI | `tools/validate.sh`, `.github/workflows/validate.yml`, `tests/` |
 | 동작 예제 / 공통 회귀 | `scenes/demo.gd`, `game/main.gd`, `tests/integration.gd` |
 | 실제 bootstrap 실패 차단 | `tests/bootstrap_failure.tscn`, `tests/fixtures/*init*` |
 
@@ -47,7 +48,7 @@ project.godot
 ## 설정 전파
 
 - 런타임: `config/game.cfg` → GameConfig → App/관리자. 변경 후 재실행한다.
-- 프로젝트·export: `config/game.cfg` → `tools/configure.gd` → `project.godot`, 여섯 preset. 게임이 이미 정의한 InputMap과 기존 SDK·서명 옵션은 보존한다.
+- 프로젝트·export: `config/game.cfg` → `tools/configure.gd` → `project.godot`, 아홉 preset(0~8번; Windows·macOS·Linux × 세 채널). 게임이 이미 정의한 InputMap과 기존 SDK·서명 옵션은 보존한다.
 - 배포 채널: preset의 `standalone` / `itch` / `steam` feature가 config보다 우선한다. Editor의 `auto`는 standalone이다.
 - 사용자 설정: 전체 파일 검증 / 디스크 저장 성공 → `Settings.changed` → 오디오 버스. 화면 후보는 WindowManager가 즉시 적용하고 확인 후 Settings에 저장한다. 확인 실패는 `preview_failed` → SettingsPanel의 `operation_failed`로 전달한다.
 - 바인딩: InputManager가 등록된 action의 허용된 입력 필드만 ConfigFile에 기록한다. 아직 등록되지 않은 action의 저장값은 보존한다. `ui_*` action은 재설정 대상에서 제외한다.
@@ -55,26 +56,25 @@ project.godot
 
 ## 변경 후 검증
 
-저장소 루트에서 Godot **4.7.2**로 실행한다. `godot`가 PATH에 없으면 실행 파일 경로로 바꾼다(macOS: `/Applications/Godot.app/Contents/MacOS/Godot`).
+저장소 루트에서 Godot **4.7.2**로 공통 회귀 검사를 실행한다. CI(`.github/workflows/validate.yml`)도 같은 스크립트를 Linux에서 실행한다.
 
 ```bash
-godot --headless --path . --editor --import --quit
-godot --headless --path . --scene res://tests/integration.tscn
-godot --headless --path . --scene res://tests/integration.tscn -- --disabled
-godot --headless --path . --scene res://tests/integration.tscn -- --native
+tools/validate.sh                         # PATH의 godot 사용
+GODOT=/path/to/Godot tools/validate.sh    # 예: macOS /Applications/Godot.app/Contents/MacOS/Godot
 ```
 
-종료 코드 0, `INTEGRATION`의 실패 0건, `SCRIPT ERROR`·`Parse Error`·객체 누수 로그 부재를 확인한다. 설정 도구 변경 시 import한 임시 복사본에서 두 번 실행하여 재실행 결과가 같고 수동 SDK·서명 옵션이 유지되는지 확인한다.
+스크립트가 실행하는 검사:
 
-GUI 화면 변경 시 `godot --path . --scene res://tests/integration.tscn -- --capture`로 실제 창과 rollback을 확인한다. 캡처 경로는 로그에 출력된다. 검사는 고유 `/tmp` 저장 경로를 사용하고 캡처 모드 이외에는 정리한다.
+| 이름 | 명령 인수 | 통과 조건 |
+| --- | --- | --- |
+| import | `--editor --import --quit` | exit 0, 오류 로그 없음 |
+| integration (기본 / `--disabled` / `--native`) | `--scene res://tests/integration.tscn [-- 옵션]` | `INTEGRATION: N checks, 0 failures` |
+| bootstrap-failure (기본 / `--runtime-error`) | `--scene res://tests/bootstrap_failure.tscn [-- --runtime-error]` | `entry_blocked=true message_shown=true` 후 창 닫기 요청으로 종료 |
 
-초기화 실패의 실제 진입 차단은 별도 프로세스에서 검사한다:
+모든 검사는 exit 0이어야 하고 로그에 `SCRIPT ERROR`·`Parse Error`·`ERROR:`·객체 누수가 없어야 한다(Godot은 스크립트 오류 뒤에도 exit 0일 수 있다). 예외는 실패 주입 검사의 `Game init script failed`와 `deliberate_init_failure` 로그뿐이다. 로그는 `build/validation_logs/`에 남는다.
 
-```bash
-godot --headless --path . --scene res://tests/bootstrap_failure.tscn
-godot --headless --path . --scene res://tests/bootstrap_failure.tscn -- --runtime-error
-```
+설정 도구를 바꿨다면 configure를 두 번 실행해 `project.godot`·`export_presets.cfg`가 달라지지 않는지(`git diff`) 확인한다. CI도 이 검사를 한다.
 
-두 명령 모두 exit 0과 `BOOTSTRAP_FAILURE: entry_blocked=true message_shown=true`가 필요하다. 이어서 창 닫기 요청으로 종료되어야 하며, `close_allowed=false`가 출력되면 실패다. 이 두 실패 주입 검사에 한해서 `Game init script failed`가 예상 로그다. `--runtime-error`는 `runtime_error_init_fixture.gd`의 `deliberate_init_failure` 호출 오류도 의도적으로 발생시킨다. 다른 parse/script 오류나 누수는 실패로 판단한다. 일반 통합 검사에는 이 예외를 적용하지 않는다.
+GUI 화면을 바꿨다면 `godot --path . --scene res://tests/integration.tscn -- --capture`로 실제 창과 화면 설정 rollback을 확인한다. 캡처 경로는 로그에 출력된다. 검사는 고유 `/tmp` 저장 경로를 쓰고 캡처 모드가 아니면 정리한다.
 
-공통 회귀 검증은 Windows/macOS 실행 파일, 서명, 스토어 서버 검증을 대신하지 않는다. 실제 결과와 남은 범위는 [template/VALIDATION.md](template/VALIDATION.md)에 기록한다.
+공통 회귀 검증은 Windows/macOS/Linux 실행 파일, 서명, 스토어 서버 검증을 대신하지 않는다. 실제 결과와 남은 범위는 [template/VALIDATION.md](template/VALIDATION.md)에 기록한다.

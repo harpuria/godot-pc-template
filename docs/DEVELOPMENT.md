@@ -26,12 +26,13 @@ scenes/                bootstrap(진입점), 데모와 장면 이동 예제
 config/game.cfg        공개 게임 설정
 default_bus_layout.tres  Master / BGM / SFX / UI 오디오 버스
 assets/demo/           데모 음원
-tools/                 설정 반영(configure), 라이선스 고지 생성
+tools/                 설정 반영(configure), 회귀 검사(validate.sh), 라이선스 고지 생성
 tests/                 공통 통합 검사와 실패 주입 fixture
 third_party/           엔진·제3자 배포 고지
 docs/                  가이드와 참고 문서
 docs/template/         템플릿 적용·이력·구현·검증 기록
 docs/distribution/     SteamPipe 업로드 예시
+.github/workflows/     CI (tools/validate.sh를 Linux headless Godot으로 실행)
 build/                 로컬 export 결과 (Git 제외)
 ```
 
@@ -78,7 +79,7 @@ godot --headless --path . --editor --import --quit
 godot --headless --path . --script res://tools/configure.gd
 ```
 
-configure는 앱 정보, 화면 크기, 없는 기본 action과 export preset 0~5번을 갱신한다. 이미 있는 Input Map, 추가 custom feature, 서명·아이콘 같은 preset 옵션은 유지한다. 6번 이후에 직접 만든 preset은 건드리지 않는다.
+configure는 앱 정보, 화면 크기, 없는 기본 action과 export preset 0~8번(Windows·macOS·Linux × Standalone·Itch·Steam)을 갱신하고 `build/` 출력 폴더를 만든다. 이미 있는 Input Map, 추가 custom feature, 서명·아이콘 같은 preset 옵션은 유지한다. 직접 만든 preset은 9번 이후에 두며, 0~8번 자리에 다른 이름의 preset이 있으면 덮어쓰지 않고 실패한다.
 
 ## 사용자 데이터 파일
 
@@ -88,7 +89,7 @@ configure는 앱 정보, 화면 크기, 없는 기본 action과 export preset 0~
 | `user://settings.cfg` | Settings | 음량·언어·화면과 게임별 사용자 설정 |
 | `user://input.cfg` | InputManager | 사용자 입력 바인딩 |
 
-`user://`는 `data_directory` 아래의 OS별 사용자 폴더다(예: Windows `%APPDATA%\<data_directory>`, macOS `~/Library/Application Support/<data_directory>`). 손상된 파일은 원본을 보존하고 덮어쓰지 않는다. 세부 규칙은 [설계 설명](ARCHITECTURE.md#저장-데이터와-설정)에 있다.
+`user://`는 `data_directory` 아래의 OS별 사용자 폴더다(Windows `%APPDATA%\<data_directory>`, macOS `~/Library/Application Support/<data_directory>`, Linux `~/.local/share/<data_directory>`). 손상된 파일은 원본을 보존하고 덮어쓰지 않는다. 세부 규칙은 [설계 설명](ARCHITECTURE.md#저장-데이터와-설정)에 있다.
 
 ## 화면
 

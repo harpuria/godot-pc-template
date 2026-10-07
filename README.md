@@ -3,7 +3,7 @@
 Project: godot-pc-template  
 Godot: **4.7.2 Standard**  
 Language: GDScript  
-Targets: Windows / macOS  
+Targets: Windows / macOS / Linux (Steam Deck)  
 Distribution: Steam / itch.io / 단독 배포  
 Template Version: **0.1.0**
 
@@ -69,13 +69,15 @@ godot --headless --path . --script res://tools/configure.gd
 
 Godot의 **Editor → Manage Export Templates**에서 **4.7.2** templates를 설치한다. **Project → Export**에 다음 preset이 준비되어 있다.
 
-| 배포 | Windows | macOS |
-| --- | --- | --- |
-| 스토어 없이 단독 배포 | `Windows Standalone` | `macOS Standalone` |
-| itch.io | `Windows Itch` | `macOS Itch` |
-| Steam | `Windows Steam` | `macOS Steam` |
+| 배포 | Windows | macOS | Linux |
+| --- | --- | --- | --- |
+| 스토어 없이 단독 배포 | `Windows Standalone` | `macOS Standalone` | `Linux Standalone` |
+| itch.io | `Windows Itch` | `macOS Itch` | `Linux Itch` |
+| Steam | `Windows Steam` | `macOS Steam` | `Linux Steam` |
 
-Windows는 x86_64 `.exe`와 `.pck`, macOS는 Intel/Apple Silicon 공용 Universal `.app`을 담은 ZIP이 나온다. Windows는 폴더 안의 파일을 함께 전달하고, macOS는 ZIP을 풀어 `.app`을 실행한다.
+Windows는 x86_64 `.exe`와 `.pck`, macOS는 Intel/Apple Silicon 공용 Universal `.app`을 담은 ZIP, Linux는 x86_64 실행 파일과 `.pck`가 나온다. Windows·Linux는 폴더 안의 파일을 함께 전달하고, macOS는 ZIP을 풀어 `.app`을 실행한다. Steam Deck은 Linux 빌드를 그대로 실행한다.
+
+처음 export하기 전에 [3단계의 configure](#3-내-게임-시작하기)를 한 번 실행한다. 출력 폴더(`build/...`)를 configure가 만든다.
 
 **Steam SDK는 포함되어 있지 않다.** Steam 업적·리더보드·오버레이는 [Steam 안내](docs/STEAM.md)에 따라 연결한다. SDK 없이 만든 Release도 로컬 게임으로 정상 실행된다. macOS preset은 개발용 ad-hoc 서명이며, 공개 배포용 서명·공증은 [배포 안내](docs/DISTRIBUTION.md)를 따른다.
 
@@ -90,6 +92,7 @@ Windows는 x86_64 `.exe`와 `.pck`, macOS는 Intel/Apple Silicon 공용 Universa
 | 앱 전환 뒤 멈춤 | 창으로 돌아오면 포커스 pause가 풀린다. pause 메뉴는 Esc/Start로 닫는다 |
 | Steam 기능 `Unavailable` | SDK가 없는 Release에서는 정상. [Steam 안내](docs/STEAM.md) 확인 |
 | 저장 실패·쓰기 차단 | 손상되었거나 더 새로운 버전의 저장 원본을 보호하는 상태. [저장 계약](docs/ARCHITECTURE.md#저장-데이터와-설정) 확인 |
+| export 시 "export path doesn't exist" | configure를 실행하여 `build/` 출력 폴더를 만든다 |
 | 실행 파일 export 실패 | 4.7.2 export templates 설치; [배포 안내](docs/DISTRIBUTION.md) 확인 |
 
 ## Dependency BOM

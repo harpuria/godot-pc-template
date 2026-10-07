@@ -1,8 +1,15 @@
-## 공개 설정을 프로젝트와 여섯 PC export preset에 반영하고 수동 SDK·서명 옵션을 보존한다.
+## 공개 설정을 프로젝트와 아홉 PC export preset(Windows·macOS·Linux × 세 채널)에 반영하고 수동 SDK·서명 옵션을 보존한다.
 extends SceneTree
 
 const DEFAULT_INPUT := preload("res://core/input/default_input.gd")
 const ENGINE_VERSION := "4.7.2"
+# [preset 이름 접두어, Godot platform, 출력 폴더, 실행 파일 확장자]. 순서가 preset 번호를 정한다.
+const PLATFORMS := [
+	["Windows", "Windows Desktop", "windows", "exe"],
+	["macOS", "macOS", "macos", "zip"],
+	["Linux", "Linux", "linux", "x86_64"],
+]
+const CHANNELS := ["standalone", "itch", "steam"]
 
 func _initialize() -> void:
 	var actual := Engine.get_version_info()
@@ -63,19 +70,27 @@ func _initialize() -> void:
 		if not ProjectSettings.has_setting(key):
 			ProjectSettings.set_setting(key, {"deadzone": float(config.get_value("input", "controller_deadzone", 0.2)), "events": inputs[action]})
 	var index := 0
-	for platform in ["Windows", "macOS"]:
-		for channel in ["standalone", "itch", "steam"]:
+	for platform_info in PLATFORMS:
+		var platform: String = platform_info[0]
+		for channel: String in CHANNELS:
 			var section := "preset.%d" % index
 			var options := section + ".options"
 			var windows: bool = platform == "Windows"
-			presets.set_value(section, "name", platform + " " + channel.capitalize())
-			presets.set_value(section, "platform", "Windows Desktop" if windows else "macOS")
+			var macos: bool = platform == "macOS"
+			var preset_name := platform + " " + channel.capitalize()
+			# 도구가 소유하지 않는 preset을 덮어쓰지 않는다. 직접 만든 preset은 마지막 번호 뒤로 옮긴다.
+			var existing := str(presets.get_value(section, "name", preset_name))
+			if existing != preset_name:
+				_fail("export preset %d is \"%s\", expected \"%s\". Move custom presets after index %d" % [index, existing, preset_name, PLATFORMS.size() * CHANNELS.size() - 1])
+				return
+			presets.set_value(section, "name", preset_name)
+			presets.set_value(section, "platform", platform_info[1])
 			presets.set_value(section, "runnable", channel == "standalone")
 			presets.set_value(section, "advanced_options", true)
 			# 배포 채널만 교체하며 수동으로 추가한 SDK feature는 유지한다.
 			var custom := PackedStringArray([channel])
 			for feature in str(presets.get_value(section, "custom_features", "")).split(",", false):
-				if not feature in ["standalone", "itch", "steam"]:
+				if not feature in CHANNELS:
 					custom.append(feature)
 			presets.set_value(section, "custom_features", ",".join(custom))
 			presets.set_value(section, "export_filter", "all_resources")
@@ -89,14 +104,14 @@ func _initialize() -> void:
 				exclude_filter = _append_filter(exclude_filter, str(config.get_value("export", "steam_only_filter", "")))
 			presets.set_value(section, "include_filter", include_filter)
 			presets.set_value(section, "exclude_filter", exclude_filter)
-			var path := "build/%s/%s/%s.%s" % ["windows" if windows else "macos", channel, executable, "exe" if windows else "zip"]
+			var path := "build/%s/%s/%s.%s" % [platform_info[2], channel, executable, platform_info[3]]
 			presets.set_value(section, "export_path", path)
 			_set_default(presets, section, "script_export_mode", 2)
 			_set_default(presets, section, "encrypt_pck", false)
 			_set_default(presets, section, "encrypt_directory", false)
-			_set_default(presets, options, "binary_format/architecture", "x86_64" if windows else "universal")
+			_set_default(presets, options, "binary_format/architecture", "universal" if macos else "x86_64")
 			_set_default(presets, options, "texture_format/s3tc_bptc", true)
-			presets.set_value(options, "texture_format/etc2_astc", not windows)
+			presets.set_value(options, "texture_format/etc2_astc", macos)
 			if windows:
 				presets.set_value(options, "application/product_name", name)
 				presets.set_value(options, "application/file_description", name)
@@ -105,18 +120,20 @@ func _initialize() -> void:
 				_set_default(presets, options, "binary_format/embed_pck", false)
 				_set_default(presets, options, "codesign/enable", false)
 				_set_default(presets, options, "debug/export_console_wrapper", 1)
-			else:
+			elif macos:
 				presets.set_value(options, "application/bundle_identifier", bundle)
 				presets.set_value(options, "application/short_version", version)
 				presets.set_value(options, "application/version", version)
 				_set_default(presets, options, "codesign/codesign", 1)
 				_set_default(presets, options, "notarization/notarization", 0)
+			else:
+				_set_default(presets, options, "binary_format/embed_pck", false)
 			DirAccess.make_dir_recursive_absolute("res://" + path.get_base_dir())
 			index += 1
 	if ProjectSettings.save() != OK or presets.save("res://export_presets.cfg") != OK:
 		_fail("Could not save project settings or presets; inspect both files")
 		return
-	print("CONFIGURE: %s %s; 6 PC presets; existing input and signing options preserved" % [name, version])
+	print("CONFIGURE: %s %s; %d PC presets; existing input and signing options preserved" % [name, version, index])
 	quit(0)
 
 func _set_default(file: ConfigFile, section: String, key: String, value: Variant) -> void:

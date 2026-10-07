@@ -20,8 +20,8 @@
 - For a new plugin/library, update the README BOM and `docs/DEPENDENCIES.md` with exact version, source, license, native SDKs, architecture and compatibility evidence.
 - Keep unverified SDKs deferred behind the adapter contract. Mock success is allowed only in Debug, including directly instantiated mocks.
 - Read `docs/STEAM.md` before SDK/Cloud integration and `docs/DISTRIBUTION.md` before export, signing, packaging or upload changes.
-- Run affected checks using the commands in `docs/CODEBASE_MAP.md`. Inspect the summary and logs; Godot can exit 0 after script parse errors.
-- Record actual template verification and limits in `docs/template/VALIDATION.md`; derived games record their own results. macOS Editor tests do not establish Windows binary or store-server support.
+- Run `tools/validate.sh` (set `GODOT` if needed) after changes; `docs/CODEBASE_MAP.md` explains each check. Inspect the summary and logs; Godot can exit 0 after script parse errors. CI runs the same script.
+- Record actual template verification and limits in `docs/template/VALIDATION.md`; derived games record their own results. Editor or Linux headless tests do not establish Windows/macOS binary or store-server support.
 - Keep signing material, credentials and account tokens outside Git. Local identifiers and `steam_appid.txt` are excluded from export.
 
 ## Code and documentation
