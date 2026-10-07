@@ -6,25 +6,52 @@ signal capture_finished(action: StringName, error: int)
 signal device_changed(device: String)
 signal controller_connection_changed(device_id: int, connected: bool)
 signal save_failed(error: int)
-const ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_up", &"move_down", &"primary_action", &"pause", &"toggle_fullscreen"]
+signal load_failed(error: int)
+## 템플릿이 기본 제공하는 공통 action이다. 게임 action은 register_action()으로 추가한다.
+const COMMON_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_up", &"move_down", &"primary_action", &"pause", &"toggle_fullscreen"]
+## 장치 종류마다 설정 UI에서 바꿀 수 있는 칸 수다. 0은 주 입력, 1은 보조 입력이다.
+const SLOTS := 2
+const CATEGORIES: Array[String] = ["keyboard_mouse", "controller"]
+const _AXIS_NAMES := ["Left Stick X", "Left Stick Y", "Right Stick X", "Right Stick Y", "Left Trigger", "Right Trigger"]
 var storage_path := "user://input.cfg"
 var active_device := "keyboard_mouse"
 var capturing: StringName = &""
+var capture_slot := 0
 var write_blocked := false
+var _actions: Array[StringName] = []
 var _defaults: Dictionary = {}
+# 파일에는 있지만 아직 등록되지 않은 action의 바인딩. 등록 시 적용하고 저장 시 보존한다.
+var _stored: Dictionary = {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	var baseline := DefaultInput.actions()
-	for action in ACTIONS:
-		if not InputMap.has_action(action):
-			InputMap.add_action(action)
-			for event in baseline[action]:
-				InputMap.action_add_event(action, event)
-		_defaults[action] = InputMap.action_get_events(action)
-		InputMap.action_set_deadzone(action, clampf(float(GameConfig.value("input", "controller_deadzone", 0.2)), 0.05, 0.95))
+	for action in COMMON_ACTIONS:
+		_add_action(action, baseline[action])
 	Input.joy_connection_changed.connect(func(id: int, connected: bool): controller_connection_changed.emit(id, connected))
 	load_bindings()
+
+## 재설정·저장 대상 action을 등록 순서대로 반환한다.
+func actions() -> Array[StringName]:
+	return _actions.duplicate()
+
+## 게임 action을 재설정·저장 대상에 추가한다. init hook에서 호출하는 것을 권장한다.
+## InputMap(Project Settings)에 이미 있는 action은 그 입력을 기본값으로 쓰고, 없으면 defaults로 만든다.
+## 저장된 사용자 바인딩이 있으면 등록 즉시 적용한다.
+func register_action(action: StringName, defaults: Array = []) -> Error:
+	if action.is_empty() or str(action).begins_with("ui_"):
+		return ERR_INVALID_PARAMETER
+	if action in _actions:
+		return ERR_ALREADY_EXISTS
+	for event in defaults:
+		if not event is InputEvent or encode_event(event).is_empty():
+			return ERR_INVALID_PARAMETER
+	_add_action(action, defaults)
+	if _stored.has(action):
+		_apply_events(action, _stored[action])
+		_stored.erase(action)
+	bindings_changed.emit(action)
+	return OK
 
 ## JSON 호환 Dictionary로만 바인딩을 읽는다. 손상된 파일은 교체를 차단한다.
 func load_bindings() -> Error:
@@ -34,38 +61,36 @@ func load_bindings() -> Error:
 		write_blocked = false
 		return OK
 	if error != OK or not file.has_section("bindings"):
-		write_blocked = true
-		return (error if error != OK else ERR_INVALID_DATA) as Error
+		return _load_error(error if error != OK else ERR_INVALID_DATA)
 	var staged: Dictionary = {}
-	for action in ACTIONS:
-		if not file.has_section_key("bindings", action):
-			continue
-		var raw: Variant = file.get_value("bindings", action)
+	for key in file.get_section_keys("bindings"):
+		var raw: Variant = file.get_value("bindings", key)
 		if not raw is Array or raw.is_empty():
-			write_blocked = true
-			return ERR_INVALID_DATA
+			return _load_error(ERR_INVALID_DATA)
 		var events: Array[InputEvent] = []
 		for item in raw:
 			var event := decode_event(item)
 			if event == null:
-				write_blocked = true
-				return ERR_INVALID_DATA
+				return _load_error(ERR_INVALID_DATA)
 			events.append(event)
-		staged[action] = events
+		staged[StringName(key)] = events
+	_stored.clear()
 	for action in staged:
-		InputMap.action_erase_events(action)
-		for event in staged[action]:
-			InputMap.action_add_event(action, event)
+		if action in _actions:
+			_apply_events(action, staged[action])
+		else:
+			_stored[action] = staged[action]
 	write_blocked = false
 	return OK
 
-## 다음 입력을 지정 action에 할당한다. 수정키 단독 입력은 기다리고 Escape는 취소한다.
-func start_capture(action: StringName) -> Error:
-	if not action in ACTIONS:
+## 다음 입력을 지정 action의 slot 칸에 할당한다. 수정키 단독 입력은 기다리고 Escape는 취소한다.
+func start_capture(action: StringName, slot: int = 0) -> Error:
+	if not action in _actions or slot < 0 or slot >= SLOTS:
 		return ERR_INVALID_PARAMETER
 	if not capturing.is_empty():
 		return ERR_BUSY
 	capturing = action
+	capture_slot = slot
 	return OK
 
 ## 캡처를 취소하여 UI 탐색과 전역 단축키를 재개한다.
@@ -76,10 +101,10 @@ func cancel_capture() -> void:
 	capturing = &""
 	capture_finished.emit(action, ERR_SKIP)
 
-## 같은 장치 종류의 입력을 교체하고 다른 종류의 바인딩은 유지한다.
-## 같은 장치에서 중복된 action 바인딩은 ERR_ALREADY_IN_USE로 거절한다.
-func rebind(action: StringName, event: InputEvent) -> Error:
-	if not action in ACTIONS or encode_event(event).is_empty():
+## 같은 장치 종류의 slot번째 입력을 교체한다. 다른 칸과 다른 장치 종류의 바인딩은 유지한다.
+## 같은 장치 종류에서 다른 action이나 같은 action의 다른 칸이 쓰는 입력은 ERR_ALREADY_IN_USE로 거절한다.
+func rebind(action: StringName, event: InputEvent, slot: int = 0) -> Error:
+	if not action in _actions or slot < 0 or slot >= SLOTS or event == null or encode_event(event).is_empty():
 		return ERR_INVALID_PARAMETER
 	if event is InputEventKey and (event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE) and action != &"pause":
 		return ERR_INVALID_PARAMETER
@@ -87,32 +112,37 @@ func rebind(action: StringName, event: InputEvent) -> Error:
 	if normalized == null:
 		return ERR_INVALID_PARAMETER
 	var category := _category(normalized)
-	for other in ACTIONS:
-		if other == action:
-			continue
-		for existing in InputMap.action_get_events(other):
-			if _category(existing) == category and existing.is_match(normalized):
+	for other in _actions:
+		var used := slot_events(other, category)
+		for index in used.size():
+			if not (other == action and index == slot) and used[index].is_match(normalized):
 				return ERR_ALREADY_IN_USE
 	var before := InputMap.action_get_events(action)
+	var after: Array[InputEvent] = []
+	var index := 0
+	var replaced := false
 	for existing in before:
 		if _category(existing) == category:
-			InputMap.action_erase_event(action, existing)
-	InputMap.action_add_event(action, normalized)
+			after.append(normalized if index == slot else existing)
+			replaced = replaced or index == slot
+			index += 1
+		else:
+			after.append(existing)
+	if not replaced:
+		after.append(normalized)
+	_apply_events(action, after)
 	var error := save_bindings()
 	if error != OK:
-		InputMap.action_erase_events(action)
-		for existing in before:
-			InputMap.action_add_event(action, existing)
+		_apply_events(action, before)
 		return error
 	bindings_changed.emit(action)
 	return OK
 
 ## 확인된 복구 또는 사용자 요청 후 프로젝트의 기본 바인딩으로 되돌린다.
 func reset_bindings() -> Error:
-	for action in ACTIONS:
-		InputMap.action_erase_events(action)
-		for event in _defaults[action]:
-			InputMap.action_add_event(action, event)
+	for action in _actions:
+		_apply_events(action, _defaults[action])
+	_stored.clear()
 	write_blocked = false
 	var error := save_bindings()
 	bindings_changed.emit(&"")
@@ -122,11 +152,10 @@ func reset_bindings() -> Error:
 func save_bindings() -> Error:
 	var error: Error = ERR_UNAUTHORIZED if write_blocked else DirAccess.make_dir_recursive_absolute(storage_path.get_base_dir())
 	var file := ConfigFile.new()
-	for action in ACTIONS:
-		var serialized: Array = []
-		for event in InputMap.action_get_events(action):
-			serialized.append(encode_event(event))
-		file.set_value("bindings", action, serialized)
+	for action in _stored:
+		file.set_value("bindings", action, _encode_all(_stored[action]))
+	for action in _actions:
+		file.set_value("bindings", action, _encode_all(InputMap.action_get_events(action)))
 	if error == OK:
 		error = file.save(storage_path + ".tmp")
 	if error == OK:
@@ -135,12 +164,35 @@ func save_bindings() -> Error:
 		save_failed.emit(error)
 	return error
 
+## action에서 지정 장치 종류("keyboard_mouse" / "controller")의 입력을 칸 순서대로 반환한다.
+func slot_events(action: StringName, category: String) -> Array[InputEvent]:
+	var events: Array[InputEvent] = []
+	if InputMap.has_action(action):
+		for event in InputMap.action_get_events(action):
+			if _category(event) == category:
+				events.append(event)
+	return events
+
+## 설정 화면에 표시할 한 칸의 입력 이름을 반환한다. 비어 있으면 "—"이다.
+func slot_text(action: StringName, category: String, slot: int) -> String:
+	var events := slot_events(action, category)
+	return event_text(events[slot]) if slot >= 0 and slot < events.size() else "—"
+
 ## 설정 화면에서 표시할 바인딩 문자열을 반환한다.
 func binding_text(action: StringName) -> String:
 	var descriptions := PackedStringArray()
 	for event in InputMap.action_get_events(action):
-		descriptions.append(event.as_text())
+		descriptions.append(event_text(event))
 	return " / ".join(descriptions)
+
+## 입력 이벤트를 짧은 표시 이름으로 바꾼다.
+static func event_text(event: InputEvent) -> String:
+	if event is InputEventKey and event.physical_keycode != 0:
+		return OS.get_keycode_string(event.get_physical_keycode_with_modifiers())
+	if event is InputEventJoypadMotion:
+		var axis_name: String = _AXIS_NAMES[event.axis] if event.axis < _AXIS_NAMES.size() else "Axis %d" % event.axis
+		return "%s %s" % [axis_name, "+" if event.axis_value > 0.0 else "-"]
+	return event.as_text()
 
 ## 지원하는 이벤트를 설정 파일용 Dictionary로 변환한다.
 static func encode_event(event: InputEvent) -> Dictionary:
@@ -212,7 +264,7 @@ func _input(event: InputEvent) -> void:
 		elif _pressed_binding(event):
 			var action := capturing
 			capturing = &""
-			var error := rebind(action, event)
+			var error := rebind(action, event, capture_slot)
 			get_viewport().set_input_as_handled()
 			capture_finished.emit(action, error)
 		return
@@ -227,6 +279,31 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_fullscreen") and not event.is_echo():
 		WindowManager.toggle_fullscreen()
 		get_viewport().set_input_as_handled()
+
+func _add_action(action: StringName, fallback: Array) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+		for event in fallback:
+			InputMap.action_add_event(action, event)
+	_actions.append(action)
+	_defaults[action] = InputMap.action_get_events(action)
+	InputMap.action_set_deadzone(action, clampf(float(GameConfig.value("input", "controller_deadzone", 0.2)), 0.05, 0.95))
+
+func _apply_events(action: StringName, events: Array) -> void:
+	InputMap.action_erase_events(action)
+	for event in events:
+		InputMap.action_add_event(action, event)
+
+func _encode_all(events: Array) -> Array:
+	var serialized: Array = []
+	for event in events:
+		serialized.append(encode_event(event))
+	return serialized
+
+func _load_error(error: int) -> Error:
+	write_blocked = true
+	load_failed.emit(error)
+	return error as Error
 
 func _pressed_binding(event: InputEvent) -> bool:
 	if event is InputEventJoypadMotion:

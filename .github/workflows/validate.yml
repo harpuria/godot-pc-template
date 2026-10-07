@@ -1,0 +1,57 @@
+# 공통 회귀 검사(tools/validate.sh)와 configure 재실행 일관성을 Linux headless Godot으로 확인한다.
+# export·서명·Windows/macOS 실행은 검사하지 않는다(docs/DISTRIBUTION.md 참고).
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read Godot version
+        id: godot
+        run: echo "version=$(tr -d '[:space:]' < .godot-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Godot
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot
+          key: godot-${{ steps.godot.outputs.version }}-linux-x86_64
+
+      - name: Download Godot
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          VERSION: ${{ steps.godot.outputs.version }}
+        run: |
+          mkdir -p ~/godot
+          curl -fsSL -o /tmp/godot.zip \
+            "https://github.com/godotengine/godot-builds/releases/download/${VERSION}-stable/Godot_v${VERSION}-stable_linux.x86_64.zip"
+          unzip -q /tmp/godot.zip -d ~/godot
+          mv ~/godot/Godot_v${VERSION}-stable_linux.x86_64 ~/godot/godot
+
+      - name: Regression checks
+        run: GODOT="$HOME/godot/godot" tools/validate.sh
+
+      - name: Configure is repeatable
+        run: |
+          "$HOME/godot/godot" --headless --path . --script res://tools/configure.gd
+          git diff --exit-code -- project.godot export_presets.cfg
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-logs
+          path: build/validation_logs/
+          if-no-files-found: ignore

@@ -11,15 +11,14 @@
 | PC 공통 관리자·StoreService·Mock | 이 저장소 0.1.0 | 템플릿 자체의 외부 배포 license는 별도 결정 | In-repo |
 | 데모 WAV | 모바일 템플릿의 자체 생성 사인파 | 외부 자산 library 없음 | 로컬 asset |
 | PC SVG 아이콘 | 이 템플릿에서 직접 작성 | 외부 자산 library 없음 | 로컬 asset |
-| Windows/macOS export templates | 엔진과 일치하는 4.7.2; [공식 archive](https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz) | Godot 및 포함된 제3자 license | 로컬 환경에 Windows x86_64 Debug/Release·macOS 설치 |
+| Windows/macOS/Linux export templates | 엔진과 일치하는 4.7.2; [공식 archive](https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz) | Godot 및 포함된 제3자 license | 로컬 macOS 환경에 Windows x86_64 Debug/Release·macOS 설치; Linux x86_64 Debug/Release는 Linux 검증 환경에 설치 |
 | 외부 Godot addon / native SDK | 없음 | N/A | 미설치 |
-| RTK | 작업 환경의 명령 wrapper; 게임 런타임 dependency 아님 | 사용 환경 기준 | 프로젝트 export에 포함되지 않음 |
 
 Godot 버전의 세 출처는 `.godot-version`, `GameConfig.ENGINE_VERSION`, 설정 도구의 버전 guard이며 모두 4.7.2다. 엔진을 바꾸려면 모바일 프로젝트와 기준을 함께 결정하고 코드·export·문서의 일치 여부를 확인한다.
 
 ## 모바일 템플릿과의 관계
 
-참조: 로컬 `/Users/yhh/Workspace/godot-mobile-template`, 템플릿 0.2.0, commit `b7210d9601360903d970e953dde28948b346dcd3` (읽을 때 working tree clean).
+참조: godot-mobile-template 0.2.0, commit `b7210d9601360903d970e953dde28948b346dcd3` (읽을 때 working tree clean).
 
 SaveManager, JsonStore, AudioManager, SceneManager, AppLogger와 loading UI·데모 음원을 기반으로 PC 요구에 맞게 확장했다. 모바일 native addon·Android/iOS export·광고·인앱 결제·모바일 back/safe-area 코드는 가져오지 않았다. 원본 모바일 프로젝트는 수정하지 않았다.
 
@@ -37,7 +36,7 @@ Godot license는 게임과 함께 제공해야 하며 포함된 제3자 고지�
 엔진 버전을 변경하거나 고지 파일을 다시 만들 때:
 
 ```bash
-rtk proxy godot --headless --path . --script res://tools/write_engine_notices.gd
+godot --headless --path . --script res://tools/write_engine_notices.gd
 ```
 
 ## 선택적 도구와 SDK — Deferred
@@ -56,4 +55,4 @@ rtk proxy godot --headless --path . --script res://tools/write_engine_notices.gd
 
 README BOM과 이 문서에 이름·정확한 버전·release URL/commit·source·license·native SDK 버전·architecture·Godot **4.7.2** 호환 근거를 기록한다. 설치 방법, 플랫폼별 binary, 업데이트 이유와 검증일도 남긴다.
 
-Verified는 Windows/macOS의 실제 export·실행 및 해당 기능의 확인이 끝난 조합에만 사용한다. 업스트림의 지원 범위만 확인한 상태는 프로젝트 Unverified로 기록한다. 자격 증명·서명 파일은 Git에 포함하지 않는다.
+Verified는 Windows/macOS/Linux의 실제 export·실행 및 해당 기능의 확인이 끝난 조합에만 사용한다. 업스트림의 지원 범위만 확인한 상태는 프로젝트 Unverified로 기록한다. 자격 증명·서명 파일은 Git에 포함하지 않는다.

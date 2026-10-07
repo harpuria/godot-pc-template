@@ -1,6 +1,6 @@
 # 선택적 Steam 연결 안내
 
-현재 외부 Steam 플러그인과 Steamworks SDK는 **미설치**다. 게임은 Windows/macOS의 Steam·itch.io·단독 채널에서 공통 코드를 사용하고, 실제 Steam API는 검증한 Adapter를 선택적으로 등록한다. SDK 미설치를 Steam 기능 지원 완료로 표현하지 않는다.
+Steam 플러그인과 Steamworks SDK는 **설치되어 있지 않다**. 게임 코드는 배포 채널과 관계없이 `App.store`를 사용하고, 실제 Steam 업적·리더보드·오버레이는 아래 절차로 검증한 Adapter를 등록해야 동작한다. 등록 전에는 Debug에서 Mock, Release에서 "사용 불가"로 동작한다.
 
 ## 현재 API와 결과 의미
 
@@ -34,10 +34,10 @@ timeout_seconds=15.0
 
 ## 실제 Adapter 붙이기
 
-1. Godot **4.7.2 Standard**, Windows x86_64, macOS universal에 맞는 플러그인과 native SDK 조합을 고른다. GodotSteam 같은 후보의 **정확한 release/tag/commit**, 라이선스, SDK 버전과 platform별 바이너리를 조사한다. 현재 선택·설치한 후보는 없다.
-2. `docs/DEPENDENCIES.md`와 README BOM에 실제 조합과 compatibility evidence를 기록한다. 버전을 추측하거나 자동 최신으로 바꾸지 않는다.
+1. Godot **4.7.2 Standard**, Windows x86_64, macOS universal, Linux x86_64에 맞는 플러그인과 native SDK 조합을 고른다. GodotSteam 같은 후보의 **정확한 release/tag/commit**, 라이선스, SDK 버전과 platform별 바이너리를 조사한다. 현재 선택·설치한 후보는 없다.
+2. `docs/DEPENDENCIES.md`와 README BOM에 고른 조합의 정확한 버전과 호환성 근거를 기록한다.
 3. `game/platform/steam_adapter.gd`가 `StoreAdapter`를 상속하여 SDK 초기화·capabilities·poll·execute·shutdown을 구현하게 한다. 여러 게임이 공유할 검증된 구현이 된 경우 `services/store/`로 옮길 수 있다.
-4. `game/game_init.gd`의 hook에서 Steam 채널에만 Adapter를 등록한다.
+4. 이미 있는 `game/game_init.gd`의 hook에 Steam 채널에서만 Adapter를 등록하는 코드를 추가한다(기존 등록 코드와 합친다).
 
 ```gdscript
 ## Steam 채널에서만 게임이 검증한 SDK Adapter를 등록한다.
@@ -53,9 +53,9 @@ func before_app_initialize() -> Dictionary:
 	return {"error": OK}
 ```
 
-5. `[app] init_script`를 연결하고 `[services] mode="native"`를 설정한다. Editor에서 연결을 확인하려면 `[distribution] channel="steam"`을 사용한다. export에서는 preset feature가 우선한다.
+5. `config/game.cfg`에서 `[services] mode="native"`를 설정한다(`init_script`는 이미 `game/game_init.gd`로 연결되어 있다). Editor에서 연결을 확인하려면 `[distribution] channel="steam"`을 사용한다. export에서는 preset feature가 우선한다.
 6. `steam_only_filter`에 Steam addon 경로를 지정하고 Standalone/Itch 결과물에 SDK가 들어가지 않는지 확인한다. plugin autoload·GDExtension의 초기화도 채널을 확인하도록 구성한다.
-7. 실제 계정과 양 OS의 Debug/Release에서 초기화·콜백·오프라인·overlay·종료를 확인한다.
+7. 실제 계정과 배포하는 각 OS의 Debug/Release에서 초기화·콜백·오프라인·overlay·종료를 확인한다.
 
 ## Adapter 계약
 
@@ -71,15 +71,16 @@ func before_app_initialize() -> Dictionary:
 
 현재 저장은 로컬 JSON이며 Cloud API는 구현하지 않았다. Steam Auto-Cloud를 선택하면 SDK 없이도 지정한 저장 파일의 동기화를 구성할 수 있다. 게임별 Steamworks quota, root와 OS override를 직접 설정하고 검증한다. [Steam Cloud 문서](https://partner.steamgames.com/doc/features/cloud)
 
-기본 `app/data_directory="MyStudio/MyGame"`을 사용하는 예시:
+예를 들어 `app/data_directory="MyStudio/MyGame"`이면 저장 파일 위치는 다음과 같다(템플릿 기본값은 `godot-pc-template`):
 
 | OS | 실제 저장 파일 경로 |
 | --- | --- |
 | Windows | `%APPDATA%/MyStudio/MyGame/saves/slot_1.json` |
 | macOS | `~/Library/Application Support/MyStudio/MyGame/saves/slot_1.json` |
+| Linux / Steam Deck | `~/.local/share/MyStudio/MyGame/saves/slot_1.json` |
 
 이는 Godot의 custom user directory 설정에 따른다. `data_directory`가 달라지면 경로도 달라진다. [Godot 사용자 저장 경로](https://docs.godotengine.org/en/stable/tutorials/io/data_paths.html)
 
-Auto-Cloud에서는 Windows의 AppData Roaming root에 `MyStudio/MyGame/saves`와 `*.json`을 연결하고, macOS는 같은 logical root의 override를 `MacAppSupport`에 연결한다. cross-platform 저장은 OS별 독립 root만 추가하면 자동 공유되지 않으므로 **하나의 root와 OS override**를 구성한다. 최종 설정은 실제 출력 경로와 Steamworks UI에서 확인한다. [Root Overrides](https://partner.steamgames.com/doc/features/cloud#root_overrides)
+Auto-Cloud에서는 Windows의 AppData Roaming root에 `MyStudio/MyGame/saves`와 `*.json`을 연결하고, macOS는 같은 logical root의 override를 `MacAppSupport`에, Linux는 `LinuxXdgDataHome`에 연결한다. cross-platform 저장은 OS별 독립 root만 추가하면 자동 공유되지 않으므로 **하나의 root와 OS override**를 구성한다. 최종 설정은 실제 출력 경로와 Steamworks UI에서 확인한다. [Root Overrides](https://partner.steamgames.com/doc/features/cloud#root_overrides)
 
 `settings.cfg`, `input.cfg`, `.tmp`는 Cloud 대상에서 제외하여 해상도·장치 설정을 PC마다 유지한다. 기본 저장은 Steam 계정별로 분리되지 않는다. 여러 계정이 같은 OS 사용자로 실행한다면 Steam user ID별 profile과 Cloud path를 게임에서 정의해야 한다. 충돌 선택, 오프라인 변경, Windows↔macOS 전환, 기존 schema migration을 검증한 뒤 Cloud 지원을 게시한다.

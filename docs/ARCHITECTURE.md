@@ -6,16 +6,24 @@
 Game (game/)
   ├─ 공통 Autoload: SaveManager, Settings, AudioManager, WindowManager,
   │                InputManager, SceneManager, App
+  ├─ 재사용 UI: PauseMenu, SettingsPanel, App.dialogs (QuitDialogs)
   └─ App.store (StoreService)
        └─ StoreAdapter / Debug Mock / 게임이 등록한 선택적 SDK Adapter
             └─ Steam 등 외부 Plugin / Native SDK
 ```
 
-게임 규칙·보상·저장 schema는 `game/` 소유다. App은 구성과 앱 수명만 관리한다. ESD 연결은 Adapter가 담당하며 게임에서 네이티브 singleton을 직접 호출하지 않는다. itch.io와 standalone은 SDK 없이 실행한다.
+게임 규칙·보상·저장 schema는 `game/` 소유다. App은 구성과 앱 수명만 관리한다. 스토어(ESD) 연결은 Adapter가 담당하며 게임에서 네이티브 singleton을 직접 호출하지 않는다. itch.io와 standalone은 SDK 없이 실행한다.
 
 ## 초기화와 수명
 
-Autoload 순서는 [CODEBASE_MAP](CODEBASE_MAP.md)의 실행 흐름을 따른다. bootstrap은 `app/init_script` hook을 App 초기화 전에 실행하여 schema와 검증한 Adapter를 등록한다. hook은 인수 없는 동기 `before_app_initialize() -> Dictionary`이며 성공 결과는 `{"error": OK}`다. 서명·결과 오류, 명시적 실패, 런타임 오류는 App 초기화·저장 읽기·게임 진입을 차단한다. 정수 반환형의 런타임 오류 기본값이 `OK`와 같을 수 있어 필수 결과 필드로 정상 완료를 확인한다.
+Autoload 순서는 [CODEBASE_MAP](CODEBASE_MAP.md)의 실행 흐름을 따른다. bootstrap은 `app/init_script`(기본 `game/game_init.gd`) hook을 App 초기화 전에 실행한다. hook은 저장 schema·migration, 재설정할 게임 입력 action, 검증한 스토어 Adapter를 등록한다.
+
+hook 계약:
+
+- `RefCounted`를 상속하고, 필수 인수 없는 생성자와 인수 없는 동기 `before_app_initialize() -> Dictionary`를 둔다.
+- 성공 결과는 `{"error": OK}`, 실패는 `{"error": ERR_...}`다.
+- 서명 오류, 결과 누락, 명시적 실패, 런타임 오류는 App 초기화·저장 읽기·게임 진입을 차단한다. 이때 bootstrap은 화면에 오류 문구를 표시하고 창 닫기는 허용한다.
+- 반환형을 `Dictionary`로 정한 이유: `int`/`Error` 반환형은 런타임 오류 시 기본값 `0`이 `OK`와 같아 실패를 성공으로 오인할 수 있다.
 
 `App.initialize()`는 한 번만 수행한다. 서비스 feature가 꺼져 있으면 SDK 초기화를 생략한다. Debug의 명시적 `mode=mock`은 Mock, Steam 채널의 `mode=native`와 등록한 Adapter 조합은 실제 연결을 선택한다. 나머지는 unavailable이며 게임 로컬 기능을 계속 사용할 수 있다. release에서는 Mock을 선택하거나 초기화하지 않는다.
 
@@ -40,17 +48,31 @@ Settings는 파일의 모든 값을 먼저 검증한다. 알려진 키의 타입
 
 WindowManager는 windowed / borderless / exclusive fullscreen, 창 크기, VSync, FPS 제한을 담당한다. 후보는 저장 전에 적용하고 15초 뒤 자동 복구한다. 앱 수명의 확인창을 사용하므로 게임 장면과 독립적으로 확인할 수 있다. 확인 시 Settings 저장이 실패하면 이전 값으로 복구하고 `preview_failed(error)`를 보낸다. SettingsPanel은 이를 `operation_failed`로 전달한다. 자체 UI도 실패 신호를 구독한다. 창 모드 resize는 0.5초 뒤 기록한다. 화면 설정은 모니터·OS가 실제 지원하는 범위에 제약을 받는다.
 
-InputManager는 공통 action의 키보드/마우스 또는 게임패드 바인딩을 교체하며 다른 종류의 입력은 보존한다. 중복 바인딩을 거절하고 deadzone과 장치 변경 신호를 제공한다. `ui_*`는 기본 탐색을 보존한다. 리소스에서 정의한 기본 바인딩이 기준이며 configure가 기존 action을 덮어쓰지 않는다. 게임별 action과 컨트롤 표시·아이콘은 게임이 추가한다.
+InputManager는 공통 action(`COMMON_ACTIONS`)과 게임이 `register_action()`으로 등록한 action을 재설정·저장한다. 기본 바인딩은 Input Map(Project Settings)이 기준이고, 없는 action은 등록 시 넘긴 기본값으로 만든다. configure는 기존 action을 덮어쓰지 않는다.
+
+- 바인딩은 장치 종류(`keyboard_mouse` / `controller`)마다 칸으로 다룬다. `rebind(action, event, slot)`은 그 장치 종류의 slot번째 입력만 교체하고 다른 칸·다른 장치 종류는 유지한다. 설정 UI는 주(0)·보조(1) 두 칸을 제공한다.
+- 같은 장치 종류에서 다른 action이나 같은 action의 다른 칸이 쓰는 입력은 `ERR_ALREADY_IN_USE`로 거절한다. `ui_*` action은 등록·재설정 대상이 아니다.
+- 파일에 있지만 아직 등록되지 않은 action의 바인딩은 보존했다가 등록 시 적용한다. 손상된 파일은 `load_failed`를 보내고 쓰기를 차단한다.
+- 컨트롤 표시 아이콘과 로컬 다인 입력의 장치 배정은 게임이 추가한다. 게임패드 이벤트는 `device=-1`로 모든 컨트롤러를 받는다.
 
 캡처 중 Ctrl·Shift·Alt·Meta 단독 press/release는 소비하고 다음 조합 키를 기다린다. 수정키 단독 바인딩은 캡처 UI에서 제공하지 않으며 Escape는 조합 여부와 관계없이 취소한다.
 
 ## Pause·포커스·종료
 
-App은 reason 집합으로 `menu`, `focus`, `overlay`, `quit_dialog` 등을 독립적으로 관리한다. 하나라도 있으면 SceneTree를 pause하고 마지막 이유를 해제할 때 재개한다. 외부 코드가 먼저 pause한 트리는 App이 재개하지 않는다. 공통 관리자·서비스와 조작할 메뉴는 `PROCESS_MODE_ALWAYS`로 동작한다.
+App은 reason 집합으로 `menu`, `focus`, `overlay`, `quit_dialog` 등을 독립적으로 관리한다. 하나라도 있으면 SceneTree를 pause하고 마지막 이유를 해제할 때 재개한다. 이유가 바뀔 때마다 `pause_reason_changed(reason, active)`를 보낸다. 외부 코드가 먼저 pause한 트리는 App이 재개하지 않는다. 공통 관리자·서비스와 조작할 메뉴는 `PROCESS_MODE_ALWAYS`로 동작한다.
+
+`PauseMenu`는 `menu` 이유를 켜고 끄며, 다른 코드가 `menu` 이유를 바꿔도 표시 상태를 맞춘다. 입력 캡처·화면 미리보기·종료 대화상자가 열려 있는 동안에는 pause action을 처리하지 않는다.
 
 포커스 상실 시 저장한다. `pause_on_focus_loss`는 시뮬레이션 정지, `mute_on_focus_loss`는 오디오 정지를 독립적으로 결정한다. `menu`·`overlay`·`quit_dialog` 등 focus 외 pause는 오디오도 정지한다. 포커스 복귀는 다른 pause나 그 오디오 정지를 해제하지 않는다. SDK overlay callback도 별도 이유로 전달한다. AudioManager는 suspend 상태를 보관하여 이후 시작·재시작하는 BGM/SFX/UI에도 적용하고, 해제 시 재생을 재개한다.
 
-창 닫기는 `App.quit_requested`를 구독한 게임 UI가 처리한다. 구독자가 없으면 App이 정상 저장 후 종료한다. `request_quit()`의 저장 실패는 종료를 보류하고 `quit_failed`로 전달한다. 사용자가 저장 손실을 명시적으로 선택한 경우 `quit_without_saving()`을 호출한다. OS 강제 종료와 프로세스 중단에서 마지막 flush는 보장하지 않는다.
+창 닫기 흐름:
+
+1. `App.quit_requested`를 구독한 게임 UI가 있으면 그 UI가 처리한다(보통 `App.dialogs.confirm_quit()`). 없으면 App이 바로 저장 후 종료한다.
+2. `request_quit()`의 저장이 실패하면 종료를 보류하고 `quit_failed(error)`를 보낸다. 구독자가 없으면 `App.dialogs`가 머무르기·재시도·저장 없이 종료를 묻는다. 따라서 게임이 아무것도 연결하지 않아도 창 닫기가 무반응으로 끝나지 않는다.
+3. 저장 없이 종료(`quit_without_saving()`)는 사용자가 명시적으로 선택한 경우에만 호출한다.
+4. App 초기화 전이나 init hook 실패 후에는 저장할 진행이 없으므로 창 닫기를 바로 허용한다.
+
+OS 강제 종료와 프로세스 중단에서 마지막 flush는 보장하지 않는다.
 
 ## 선택적 ESD 요청
 

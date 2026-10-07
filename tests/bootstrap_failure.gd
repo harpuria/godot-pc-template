@@ -18,6 +18,14 @@ func _run() -> void:
 	await get_tree().process_frame
 	var blocked := not App.ready_for_game and App.store == null and SaveManager.data == {"untouched": true} \
 		and not SceneManager.transitioning and get_tree().current_scene == self
-	print("BOOTSTRAP_FAILURE: entry_blocked=%s" % blocked)
+	var message_shown := bootstrap.get_children().any(func(child: Node): return child is Label)
+	print("BOOTSTRAP_FAILURE: entry_blocked=%s message_shown=%s" % [blocked, message_shown])
 	DirAccess.remove_absolute(SaveManager.storage_path.get_base_dir())
-	get_tree().quit(0 if blocked else 1)
+	if not blocked or not message_shown:
+		get_tree().quit(1)
+		return
+	# 초기화 실패 후에도 창 닫기 요청으로 종료할 수 있어야 한다.
+	App.notification(NOTIFICATION_WM_CLOSE_REQUEST)
+	await get_tree().create_timer(1.0).timeout
+	print("BOOTSTRAP_FAILURE: close_allowed=false")
+	get_tree().quit(1)
