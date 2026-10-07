@@ -169,15 +169,51 @@ func _input_checks() -> void:
 	for event in InputMap.action_get_events("primary_action"):
 		retained_controller = retained_controller or event is InputEventJoypadButton
 	_check(retained_controller, "Rebind preserves controller")
+	var primary_keys := InputManager.slot_events(&"primary_action", "keyboard_mouse")
+	_check(primary_keys.size() == 2 and primary_keys[0].is_match(key) and primary_keys[1] is InputEventMouseButton, "Primary slot rebind keeps secondary input")
+	var secondary := InputEventKey.new()
+	secondary.physical_keycode = KEY_H
+	_check(InputManager.rebind(&"move_left", secondary, 1) == OK, "Secondary slot rebind saved")
+	var left_keys := InputManager.slot_events(&"move_left", "keyboard_mouse")
+	_check(left_keys.size() == 2 and left_keys[0].physical_keycode == KEY_A and left_keys[1].physical_keycode == KEY_H, "Secondary rebind keeps primary key")
+	_check(InputManager.slot_text(&"move_left", "keyboard_mouse", 0) == "A" and InputManager.slot_text(&"move_left", "controller", 0) == "Left Stick X -", "Slot text is short and readable")
+	_check(InputManager.rebind(&"move_left", secondary, 0) == ERR_ALREADY_IN_USE, "Same input in another slot rejected")
+	_check(InputManager.rebind(&"move_left", secondary, InputManager.SLOTS) == ERR_INVALID_PARAMETER, "Out-of-range slot rejected")
+	_check(InputManager.start_capture(&"move_left", 1) == OK and InputManager.capture_slot == 1, "Capture targets requested slot")
+	var captured := InputEventKey.new()
+	captured.physical_keycode = KEY_G
+	captured.pressed = true
+	InputManager._input(captured)
+	_check(InputManager.slot_events(&"move_left", "keyboard_mouse")[1].physical_keycode == KEY_G, "Captured input lands in requested slot")
 	_check(InputManager.load_bindings() == OK, "Bindings round trip")
 	key.physical_keycode = KEY_A
 	_check(InputManager.rebind(&"primary_action", key) == ERR_ALREADY_IN_USE, "Binding conflict rejected")
 	_check(InputManager.decode_event({"type": "joy_axis", "axis": -1, "value": 1.0}) == null, "Invalid controller axis rejected")
 	_check(InputManager.decode_event({"type": "key", "physical": "A"}) == null, "Invalid key type rejected")
+	_check(InputManager.register_action(&"test_interact", [DefaultInput.key(KEY_U), DefaultInput.button(JOY_BUTTON_X)]) == OK, "Game action registered")
+	_check(&"test_interact" in InputManager.actions() and InputMap.has_action(&"test_interact"), "Registered action is rebindable and in InputMap")
+	_check(InputManager.register_action(&"test_interact") == ERR_ALREADY_EXISTS, "Duplicate registration rejected")
+	_check(InputManager.register_action(&"ui_accept") == ERR_INVALID_PARAMETER, "UI actions cannot be registered")
+	_check(InputManager.register_action(&"test_bad", [null]) == ERR_INVALID_PARAMETER, "Invalid default input rejected")
+	var interact := InputEventKey.new()
+	interact.physical_keycode = KEY_Y
+	_check(InputManager.rebind(&"test_interact", interact) == OK and InputManager.load_bindings() == OK \
+		and InputManager.slot_events(&"test_interact", "keyboard_mouse")[0].physical_keycode == KEY_Y, "Registered action binding survives reload")
+	_write(InputManager.storage_path, "[bindings]\ntest_later=[{\"type\":\"key\",\"physical\":79}]\n")
+	_check(InputManager.load_bindings() == OK and not InputMap.has_action(&"test_later"), "Bindings for unregistered actions wait for registration")
+	_check(InputManager.save_bindings() == OK and FileAccess.get_file_as_string(InputManager.storage_path).contains("test_later"), "Unregistered bindings preserved on save")
+	_check(InputManager.register_action(&"test_later", [DefaultInput.key(KEY_P)]) == OK \
+		and InputManager.slot_events(&"test_later", "keyboard_mouse")[0].physical_keycode == KEY_O, "Saved binding applied when action registers")
+	var load_errors: Array[int] = []
+	var load_listener := func(error: int): load_errors.append(error)
+	InputManager.load_failed.connect(load_listener)
 	_write(InputManager.storage_path, "[bindings]\nprimary_action=[{\"type\":\"unknown\"}]\n")
 	_check(InputManager.load_bindings() == ERR_INVALID_DATA and InputManager.write_blocked, "Malformed bindings protected")
+	_check(load_errors == [ERR_INVALID_DATA], "Malformed bindings reported through load_failed")
+	InputManager.load_failed.disconnect(load_listener)
 	_check(InputManager.save_bindings() == ERR_UNAUTHORIZED, "Bindings corruption blocks write")
 	_check(InputManager.reset_bindings() == OK, "Default controls restored")
+	_check(InputManager.slot_events(&"test_later", "keyboard_mouse")[0].physical_keycode == KEY_P, "Reset restores registered action defaults")
 	_check(InputManager.start_capture(&"primary_action") == OK, "Capture started")
 	_check(InputManager.start_capture(&"pause") == ERR_BUSY, "Duplicate capture rejected")
 	InputManager.cancel_capture()
