@@ -62,6 +62,11 @@ func _run() -> void:
 	_check(App.store.unlock_achievement("UNKNOWN") == ERR_INVALID_PARAMETER, "Logical ID validation")
 	_check(App.store.open_overlay("invalid") == ERR_INVALID_PARAMETER, "Overlay page validation")
 	_check(preload("res://scenes/bootstrap.gd").run_init_script("") == OK, "Empty init hook allowed")
+	_check(GameConfig.value("app", "init_script") == "res://game/game_init.gd" \
+		and preload("res://scenes/bootstrap.gd").run_init_script("res://game/game_init.gd") == OK, "Game init skeleton is wired and valid")
+	_check(ResourceLoader.exists("res://default_bus_layout.tres") and AudioServer.get_bus_index("BGM") == 1 \
+		and AudioServer.get_bus_index("SFX") == 2 and AudioServer.get_bus_index("UI") == 3, "Editor-visible bus layout provides BGM/SFX/UI")
+	_check(load(str(ProjectSettings.get_setting("gui/theme/custom", ""))) is Theme, "Project default theme loads")
 	_check(preload("res://scenes/bootstrap.gd").run_init_script("res://game/missing.gd") == ERR_FILE_NOT_FOUND, "Missing hook rejected")
 	_save_checks()
 	_settings_checks()
@@ -89,6 +94,10 @@ func _run() -> void:
 	await SceneManager.transition_completed
 	_check(get_tree().current_scene.scene_file_path == "res://scenes/transition_demo.tscn", "Second scene entered")
 	_check(App.store == store_instance and SaveManager.data.get("recovered") == true, "Managers persist across scenes")
+	_check(SceneManager.change_scene("res://game/main.tscn") == OK, "Game skeleton scene accepted")
+	await SceneManager.transition_completed
+	_check(get_tree().current_scene.scene_file_path == "res://game/main.tscn" \
+		and get_tree().current_scene.get_children().any(func(child: Node): return child is PauseMenu), "Game skeleton enters with pause menu")
 	await get_tree().process_frame
 	if not "--capture" in args:
 		_cleanup(_directory)
