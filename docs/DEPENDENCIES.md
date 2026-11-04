@@ -14,6 +14,8 @@
 | Windows/macOS/Linux export templates | 엔진과 일치하는 4.7.2; [공식 archive](https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz) | Godot 및 포함된 제3자 license | 로컬 macOS 환경에 Windows x86_64 Debug/Release·macOS 설치; Linux x86_64 Debug/Release는 Linux 검증 환경에 설치 |
 | 외부 Godot addon / native SDK | 없음 | N/A | 미설치 |
 
+최신 버전 점검(2026-11-04): 공식 build 저장소 기준 최신 stable은 **4.7.2**이며 4.7.3은 없다. 4.8은 `4.8-beta2`까지 공개된 개발 버전이라 채택하지 않는다. CI의 GitHub Actions는 Node 24 런타임의 `checkout@v5`, `cache@v5`, `upload-artifact@v6`을 사용한다.
+
 Godot 버전의 세 출처는 `.godot-version`, `GameConfig.ENGINE_VERSION`, 설정 도구의 버전 guard이며 모두 4.7.2다. 엔진을 바꾸려면 모바일 프로젝트와 기준을 함께 결정하고 코드·export·문서의 일치 여부를 확인한다.
 
 ## 모바일 템플릿과의 관계
@@ -43,7 +45,7 @@ godot --headless --path . --script res://tools/write_engine_notices.gd
 
 | 후보 / 도구 | 목적 | 채택 상태 |
 | --- | --- | --- |
-| GodotSteam 또는 검증한 Steamworks binding | 업적·점수·overlay 등 | 정확 release/SDK/4.7.2 native 조합 아직 미선정·미설치 |
+| GodotSteam 또는 검증한 Steamworks binding | 업적·점수·overlay 등 | 미선정·미설치. 2026-11-04 조사: Godot Asset Library의 GodotSteam GDExtension 4.4+ 항목이 GodotSteam 4.17.1 / Steamworks SDK 1.63(Godot 4.4 이상)을 안내하고, 이전 release는 Codeberg 저장소로 안내한다. 4.7.2 export와 세 OS 실행은 확인하지 않았다 |
 | Steamworks SDK / steamcmd | Steam API·depot 업로드 | 게임별 계약·계정과 지원 플랫폼 확인 후 설치 |
 | itch.io butler | 빌드 업로드·패치 | 런타임 dependency 없음; 필요 시 배포 환경에 설치 |
 | Apple codesign / notarytool / Developer ID | macOS 공개 배포 서명·공증 | 개발 환경·계정별 준비 |

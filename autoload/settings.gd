@@ -17,7 +17,7 @@ func _ready() -> void:
 func defaults() -> Dictionary:
 	return {
 		"master_volume": 0.8, "bgm_volume": 0.8, "sfx_volume": 0.8, "ui_volume": 0.8,
-		"language": "en", "window_mode": GameConfig.value("display", "default_mode", "windowed"),
+		"language": OS.get_locale_language(), "window_mode": GameConfig.value("display", "default_mode", "windowed"),
 		"window_size": Vector2i(GameConfig.value("display", "window_width", 1280), GameConfig.value("display", "window_height", 720)),
 		"vsync": GameConfig.value("display", "default_vsync", true),
 		"max_fps": GameConfig.value("display", "default_max_fps", 0)
@@ -28,8 +28,11 @@ func load_settings() -> Error:
 	var file := ConfigFile.new()
 	var error := file.load(storage_path)
 	if error == ERR_FILE_NOT_FOUND:
-		write_blocked = false
-		return OK
+		# Windows에서 교체가 중단되어 완성된 .tmp만 남은 경우 그 내용을 사용한다.
+		if not FileAccess.file_exists(storage_path + ".tmp") or file.load(storage_path + ".tmp") != OK:
+			write_blocked = false
+			return OK
+		error = OK
 	if error != OK or not file.has_section("settings"):
 		write_blocked = true
 		load_failed.emit(error if error != OK else ERR_INVALID_DATA)

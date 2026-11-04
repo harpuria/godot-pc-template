@@ -142,7 +142,7 @@ MENU_START,Start,시작
 
 2. Godot이 CSV를 import하면 `text.en.translation`, `text.ko.translation`이 생긴다. **Project Settings → Localization → Translations**에 추가한다.
 3. 코드에서는 `tr("MENU_START")`, 장면의 Label·Button은 text에 키(`MENU_START`)를 그대로 쓴다.
-4. 언어 변경은 `Settings.set_setting("language", "ko")`다. 다음 실행에도 유지된다.
+4. 언어 변경은 `Settings.set_setting("language", "ko")`다. 다음 실행에도 유지된다. 새 사용자의 기본값은 OS 언어(`OS.get_locale_language()`)이며, 번역이 없는 언어는 Project Settings의 fallback locale로 표시된다.
 
 공통 UI(pause 메뉴·설정 화면·대화상자) 문구는 영어 고정이다. 번역이 필요하면 해당 문구를 키로 바꾸고 CSV에 추가한다.
 

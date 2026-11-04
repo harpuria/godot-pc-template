@@ -139,6 +139,18 @@ func _save_checks() -> void:
 	SaveManager.reset_slot({"recovered": true})
 	_check(SaveManager.flush() == OK and not SaveManager.write_blocked, "Explicit reset permits save")
 	_check(SaveManager.load_slot() == OK and SaveManager.data.recovered, "Recovered save loads")
+	# Windows의 rename은 원본 삭제 후 이동한다. 그 사이 중단되면 완성된 .tmp만 남는다.
+	DirAccess.rename_absolute(SaveManager.storage_path, SaveManager.storage_path + ".tmp")
+	SaveManager.data = {}
+	_check(SaveManager.load_slot() == OK and SaveManager.data.get("recovered") == true and SaveManager.dirty, "Interrupted replace restores completed temp save")
+	_check(SaveManager.flush() == OK and FileAccess.file_exists(SaveManager.storage_path) \
+		and not FileAccess.file_exists(SaveManager.storage_path + ".tmp"), "Restored save rewritten to original path")
+	var original_path := SaveManager.storage_path
+	SaveManager.storage_path = _directory + "/saves/first_write.json"
+	_write(SaveManager.storage_path + ".tmp", "{partial")
+	_check(SaveManager.load_slot() == OK and SaveManager.data.is_empty() and not SaveManager.write_blocked, "Incomplete first-write temp starts fresh")
+	SaveManager.storage_path = original_path
+	_check(SaveManager.load_slot() == OK and SaveManager.data.recovered, "Original save path restored")
 
 func _settings_checks() -> void:
 	_check(Settings.set_setting("master_volume", 2.0) == OK and Settings.get_setting("master_volume") == 1.0, "Volume clamped")
@@ -167,6 +179,11 @@ func _settings_checks() -> void:
 		_check(Settings.reset_to_defaults() == OK, "Explicit recovery after invalid setting value")
 	Settings.changed.disconnect(listener)
 	_check(Settings.set_setting("subtitles_enabled", true) == OK and Settings.load_settings() == OK and Settings.get_setting("subtitles_enabled"), "Game-specific settings remain supported")
+	_check(Settings.defaults().language == OS.get_locale_language(), "New users start with the OS language")
+	DirAccess.rename_absolute(Settings.storage_path, Settings.storage_path + ".tmp")
+	Settings.values.subtitles_enabled = false
+	_check(Settings.load_settings() == OK and Settings.get_setting("subtitles_enabled") == true and not Settings.write_blocked, "Interrupted settings replace restores completed temp")
+	_check(Settings.save_settings() == OK and FileAccess.file_exists(Settings.storage_path), "Restored settings rewritten to original path")
 
 func _input_checks() -> void:
 	_check(InputMap.has_action("move_left") and InputMap.has_action("primary_action"), "Default input exists")
@@ -211,6 +228,9 @@ func _input_checks() -> void:
 	_write(InputManager.storage_path, "[bindings]\ntest_later=[{\"type\":\"key\",\"physical\":79}]\n")
 	_check(InputManager.load_bindings() == OK and not InputMap.has_action(&"test_later"), "Bindings for unregistered actions wait for registration")
 	_check(InputManager.save_bindings() == OK and FileAccess.get_file_as_string(InputManager.storage_path).contains("test_later"), "Unregistered bindings preserved on save")
+	# Windows 교체 중단: 원본이 지워지고 완성된 .tmp만 남은 상태를 복구한다.
+	DirAccess.rename_absolute(InputManager.storage_path, InputManager.storage_path + ".tmp")
+	_check(InputManager.load_bindings() == OK and not InputManager.write_blocked, "Interrupted bindings replace restores completed temp")
 	_check(InputManager.register_action(&"test_later", [DefaultInput.key(KEY_P)]) == OK \
 		and InputManager.slot_events(&"test_later", "keyboard_mouse")[0].physical_keycode == KEY_O, "Saved binding applied when action registers")
 	var load_errors: Array[int] = []

@@ -48,6 +48,8 @@ godot --headless --path . --export-release "Windows Steam"
 
 Editor와 export binary는 별개다. 사용자 PC에는 Godot 설치가 필요 없다. 실제 exe의 실행·파일 경로·종료와 게임패드를 Windows 기기에서 확인한다. 최저 OS·GPU 사양은 게임과 renderer에 맞춰 정하고 실제 검증한 값만 스토어에 게시한다.
 
+서명하지 않은 exe를 브라우저로 받으면(itch.io·단독 배포) SmartScreen이 "Windows의 PC 보호" 경고를 띄울 수 있다. 서명 전에는 게임 페이지에 실행 방법을 안내한다.
+
 기본 `codesign/enable=false`다. 공개 배포의 Authenticode 서명은 인증서와 Windows SDK SignTool 또는 지원하는 도구를 별도로 준비하여 preset에 설정한다. 인증서와 암호는 환경변수·Godot credential 저장소를 사용하며 Git에 넣지 않는다. 정확한 설정은 [Godot Windows 서명](https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_windows.html#code-signing)을 따른다.
 
 ## macOS
@@ -63,6 +65,10 @@ godot --headless --path . --export-release "macOS Steam"
 
 기본 preset은 **Built-in ad-hoc 서명**, **공증 꺼짐**이다. 로컬 개발에 쓰는 초기값이며 공개 다운로드 배포용 Developer ID 서명·공증이 아니다. 공개 배포에서는 Apple Developer ID, 서명 도구와 notarization을 설정하고 결과를 확인한다. 인증서·토큰은 저장소 밖에 두며 native 라이브러리도 서명과 architecture 일치를 검증한다.
 
+브라우저로 받은 ZIP(itch.io 브라우저 다운로드·단독 배포)은 quarantine 속성이 붙는다. ad-hoc 서명·미공증 앱은 Gatekeeper가 차단하고, 최근 macOS에서는 Finder의 우클릭 → 열기로도 열리지 않아 **시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기**를 거쳐야 한다. macOS를 공개 다운로드로 배포한다면 Developer ID 서명과 공증을 출시 조건으로 둔다.
+
+`.app` 번들과 내부 실행 파일 이름은 `executable_name`이 아니라 `[app] name`(프로젝트 이름)을 따른다. Steam macOS launch option은 이 `.app` 이름을 가리킨다.
+
 Godot 메뉴에서 서명 도구와 `Notarization`을 선택하고 배포 entitlement를 점검한다. 공증 완료 후 ticket stapling까지 수행한다. 전달된 ZIP을 다른 macOS 사용자 환경에서 내려받아 Gatekeeper 상태와 `.app` 실행을 확인한다. [Godot 서명·공증 절차](https://docs.godotengine.org/en/stable/tutorials/export/exporting_for_macos.html#code-signing-and-notarization)
 
 ## Linux / Steam Deck
@@ -75,6 +81,8 @@ godot --headless --path . --export-release "Linux Standalone"
 godot --headless --path . --export-release "Linux Itch"
 godot --headless --path . --export-release "Linux Steam"
 ```
+
+Steam 배포는 Steamworks의 Linux launch option과 Linux 런타임(Steam Linux Runtime) 설정을 확인한다.
 
 압축할 때 실행 권한이 유지되도록 `tar.gz`를 쓰거나, 받는 쪽에서 `chmod +x`가 필요할 수 있음을 안내한다. 실제 Linux 데스크톱과 Steam Deck(게임 모드·게임패드·화면 크기 1280×800)에서 실행을 확인한다. 저장 위치는 `~/.local/share/<data_directory>`다.
 
@@ -96,13 +104,20 @@ butler push build/macos/itch/pc-template.zip user/game:mac --userversion 0.1.0
 butler push build/linux/itch user/game:linux --userversion 0.1.0
 ```
 
-채널 이름과 업로드 버전은 게임의 배포 정책으로 정한다. 업로드 후 itch.io 앱 설치와 브라우저 다운로드를 각각 확인한다. butler는 폴더·ZIP을 받고 채널 이름에서 OS를 판별하므로 `windows`, `mac`, `linux`처럼 플랫폼이 분명한 이름을 사용한다. [butler 업로드 문서](https://itch.io/docs/butler/pushing.html)
+`--userversion`은 `config/game.cfg`의 `[app] version`과 맞춘다. 채널 이름과 업로드 버전은 게임의 배포 정책으로 정한다. 업로드 후 itch.io 앱 설치와 브라우저 다운로드를 각각 확인한다. butler는 폴더·ZIP을 받고 채널 이름에서 OS를 판별하므로 `windows`, `mac`, `linux`처럼 플랫폼이 분명한 이름을 사용한다. [butler 업로드 문서](https://itch.io/docs/butler/pushing.html)
 
 ## Steam
 
 Steam preset으로 export하고 Windows/macOS/Linux depot과 launch option을 Steamworks에 설정한다. Steam에서 판매·설치하는 것과 게임 내부 Steamworks API 연결은 별개의 설정이다. 업적·리더보드·overlay API가 필요할 때 [STEAM](STEAM.md)의 Adapter를 추가한다.
 
 SteamPipe 입력 예시는 [docs/distribution/README.md](distribution/README.md)를 따른다. 각 OS 결과물을 준비하고 template의 App ID·depot ID placeholder를 실제 값으로 바꾼다. macOS ZIP은 먼저 `.app`으로 풀어 depot content root에 배치한다. native SDK를 넣었다면 해당 플랫폼 라이브러리와 배포 고지를 포함한다.
+
+Steam Deck 호환성 검토를 받으려면 다음을 게임에서 준비한다. 템플릿은 1280×800 화면 확장, 게임패드 UI 탐색, pause·종료 흐름까지만 제공한다.
+
+- 게임패드만으로 모든 메뉴·설정·텍스트 입력을 조작할 수 있다. 텍스트 입력이 있다면 Steam의 화상 키보드 API를 Adapter에 추가한다.
+- 게임패드를 쓰는 중에는 키보드 이름 대신 컨트롤러 버튼 아이콘을 표시한다(`InputManager.device_changed`, `slot_events()` 활용).
+- 1280×800에서 기본 글자가 작지 않게 Theme 글꼴 크기를 정한다.
+- 별도 런처나 첫 실행 시 키보드 입력을 요구하지 않는다.
 
 비공개 beta branch에서 설치·실행·업데이트·Cloud와 오프라인 동작을 확인한 뒤 배포 정책에 따라 게시한다. 업로드·게시를 템플릿 도구가 자동 수행하지 않는다. [SteamPipe 공식 안내](https://partner.steamgames.com/doc/sdk/uploading)
 

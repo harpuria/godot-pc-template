@@ -58,8 +58,11 @@ func load_bindings() -> Error:
 	var file := ConfigFile.new()
 	var error := file.load(storage_path)
 	if error == ERR_FILE_NOT_FOUND:
-		write_blocked = false
-		return OK
+		# Windows에서 교체가 중단되어 완성된 .tmp만 남은 경우 그 내용을 사용한다.
+		if not FileAccess.file_exists(storage_path + ".tmp") or file.load(storage_path + ".tmp") != OK:
+			write_blocked = false
+			return OK
+		error = OK
 	if error != OK or not file.has_section("bindings"):
 		return _load_error(error if error != OK else ERR_INVALID_DATA)
 	var staged: Dictionary = {}

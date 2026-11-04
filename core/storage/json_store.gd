@@ -20,9 +20,18 @@ static func write(path: String, document: Dictionary) -> Error:
 	return DirAccess.rename_absolute(temp, path)
 
 ## 파싱 오류와 파일 부재를 구분해서 반환한다.
+## 원본이 없고 완성된 임시 파일만 남아 있으면 그 내용을 읽고 결과에 recovered=true를 넣는다.
 static func read(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path):
+		# Windows의 DirAccess.rename은 기존 파일을 지운 뒤 이동한다. 그 사이에 중단되면 .tmp만 남는다.
+		var recovered := _read_file(path + ".tmp") if FileAccess.file_exists(path + ".tmp") else {}
+		if recovered.get("error", FAILED) == OK:
+			recovered["recovered"] = true
+			return recovered
 		return {"error": ERR_FILE_NOT_FOUND}
+	return _read_file(path)
+
+static func _read_file(path: String) -> Dictionary:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		return {"error": FileAccess.get_open_error()}

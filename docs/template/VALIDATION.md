@@ -2,6 +2,23 @@
 
 Template 0.1.0 및 미출시 보완의 실제 실행 기록이다. 최신 기록이 위에 있다. 다른 템플릿(모바일 등)이나 다른 OS의 결과를 승계하지 않는다.
 
+## 점검 보완 검증 — 2026-11-04
+
+`.tmp` 복구, OS 언어 기본값, CI action 갱신 후 실행했다. **Linux 환경**의 결과이며 Windows/macOS 실행으로 간주하지 않는다.
+
+환경: Linux x86_64 컨테이너, Godot `4.7.2.stable.official.ed1daf0bf` 공식 Linux 바이너리, 공식 4.7.2 archive의 Windows x86_64·macOS·Linux x86_64 Debug/Release templates. 사운드 장치 없음(dummy 드라이버).
+
+| 검사 | 결과 |
+| --- | --- |
+| `tools/validate.sh` | import PASS; integration 기본 / `--disabled` / `--native` 각각 **190 checks, 0 failures**; bootstrap 실패 2종 PASS; exit 0 |
+| 새 회귀 검사의 감지력 | `JsonStore` 수정을 되돌리면 `.tmp` 복구 검사 3건 FAIL |
+| configure | 새 clone에서 실행 후 `project.godot`·`export_presets.cfg` 변경 없음 |
+| 9개 preset Release export (Linux에서) | Windows·macOS·Linux × Standalone/Itch/Steam 모두 exit 0, ERROR·WARNING 0 |
+| 결과물 내용 | Linux Steam `.pck`에 `config/game.cfg`·`third_party/*.txt` 포함, docs·tests·tools 제외. Windows exe는 PE32+ x86-64 GUI이며 FileVersion·ProductName 리소스 포함. macOS ZIP의 `.app`에 실행 권한·`_CodeSignature`(ad-hoc)·`PrivacyInfo.xcprivacy` 포함 |
+| Linux Steam Release 실행 | headless 시작·종료 exit 0 |
+
+확인하지 않은 범위: Windows exe와 macOS `.app`의 실제 실행, Developer ID 서명·공증, 갱신한 CI action의 GitHub 러너 실행, 실제 Windows 파일 교체 중단(강제 종료) 재현. `.tmp` 복구는 원본 삭제 후 이동 전 상태를 파일 조작으로 재현하여 검사했다.
+
 ## 개발 착수 보완 검증 — 2026-10-07
 
 pause 메뉴·종료 대화상자, 입력 action 등록·주/보조 칸, `game/` 골격·Theme·버스 레이아웃, Linux preset, `tools/validate.sh`·CI를 추가한 뒤 실행했다. 이번 결과는 **Linux 환경**의 결과이며 Windows/macOS 실행으로 간주하지 않는다.

@@ -1,5 +1,16 @@
 # Changelog
 
+## 미출시 — 점검 보완 (2026-11-04)
+
+- 저장: Windows의 rename(원본 삭제 후 이동)이 중단되어 `.tmp`만 남은 경우 SaveManager·Settings·InputManager가 그 내용을 복구한다. SaveManager는 복구한 진행을 원본 경로에 다시 저장한다. 이전에는 새 게임으로 시작하여 진행이 사라질 수 있었다.
+- Settings: 새 사용자의 `language` 기본값을 `"en"`에서 OS 언어로 변경. 이전에는 설정을 한 번 저장하면 다음 실행부터 OS 언어 대신 영어가 고정되었다.
+- CI: Node 20 지원 종료에 맞춰 `actions/checkout@v5`, `actions/cache@v5`, `actions/upload-artifact@v6`으로 갱신.
+- 문서: Windows SmartScreen·macOS Gatekeeper(미서명 다운로드) 안내, macOS `.app` 이름 기준, Steam Linux 런타임·Steam Deck 준비 항목, butler 버전 일치, Steam 라이브러리와 hardened runtime 주의, 2026-11-04 버전 점검 기록.
+
+기존 게임 적용:
+
+- 게임이 `language` 기본값 `"en"`을 전제했다면 init hook 이후 직접 지정하거나 `Settings.defaults()` 결과를 확인한다. 이미 저장된 사용자 설정은 바뀌지 않는다.
+
 ## 미출시 — 개발 착수 보완 (2026-10-07)
 
 - 재사용 UI: `PauseMenu`(Esc / Start, 계속하기·설정·종료)와 `QuitDialogs`(종료 확인, 저장 실패 시 머무르기·재시도·저장 없이 종료). App이 기본 인스턴스 `App.dialogs`를 소유한다.

@@ -34,7 +34,7 @@ hook 계약:
 - SaveManager: `user://saves/slot_1.json`의 `{version, data}` envelope, dirty 자동 저장과 순차 migration. JSON 호환 게임 데이터만 저장한다.
 - Settings: `user://settings.cfg`의 음량·언어·화면 옵션과 게임별 추가 설정.
 - InputManager: `user://input.cfg`의 입력 종류와 숫자 필드. arbitrary Object를 역직렬화하지 않는다.
-- JsonStore: 디렉터리 생성 → 같은 디렉터리의 `.tmp` 기록·flush → rename 교체.
+- JsonStore: 디렉터리 생성 → 같은 디렉터리의 `.tmp` 기록·flush → rename 교체. Windows의 rename은 기존 파일을 지운 뒤 이동하므로, 원본이 없고 읽을 수 있는 `.tmp`만 남아 있으면 그 내용을 불러와 원본 경로에 다시 저장한다. Settings·InputManager도 같은 방식으로 `.tmp`를 확인한다.
 
 진행 저장의 parse·schema·migration 실패는 메모리와 원본을 보존하고 이후 쓰기를 차단한다. 미래 버전·분수 version도 거절한다. 정상 load 또는 사용자 선택 이후 `reset_slot()`로 차단을 해제한다. 설정과 바인딩도 손상 시 원본 교체를 차단하고 명시적 reset을 제공한다.
 
