@@ -31,7 +31,7 @@ rsync -a --ignore-existing --exclude .git --exclude .godot --exclude build --exc
 | 파일 / 경로 | 처리 |
 | --- | --- |
 | `autoload/`, `core/`, `services/`, `tools/` | 공통 프레임워크로 유지 |
-| `ui/` (`menus`, `dialogs`, `settings`, `loading`, `theme`) | 공통 UI로 유지. Theme은 게임에 맞게 수정해도 된다 |
+| `ui/` (`menus`, `dialogs`, `settings`, `loading`, `theme`, `i18n`) | 공통 UI로 유지. Theme과 `ui/i18n/ui.csv`의 문구·언어 열은 게임에 맞게 수정해도 된다 |
 | `scenes/bootstrap.*` | 진입점으로 유지; 게임 초기화는 hook에서 |
 | `scenes/main.tscn`, `scenes/demo.gd`, `scenes/transition_demo.*`, `assets/demo/` | 예제·회귀 검사용으로 유지; 배포에서는 `exclude_demo=true`로 제외 |
 | `tests/`, `tools/validate.sh` | 공통 회귀 검사로 유지; 게임 검사는 별도로 둔다 |

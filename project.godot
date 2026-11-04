@@ -99,6 +99,10 @@ toggle_fullscreen={
 ]
 }
 
+[internationalization]
+
+locale/translations=PackedStringArray("res://ui/i18n/ui.en.translation", "res://ui/i18n/ui.ko.translation")
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"

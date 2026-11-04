@@ -70,6 +70,7 @@ func _run() -> void:
 	_check(preload("res://scenes/bootstrap.gd").run_init_script("res://game/missing.gd") == ERR_FILE_NOT_FOUND, "Missing hook rejected")
 	_save_checks()
 	_settings_checks()
+	_translation_checks()
 	_input_checks()
 	_pause_checks()
 	await _quit_checks()
@@ -139,6 +140,18 @@ func _save_checks() -> void:
 	SaveManager.reset_slot({"recovered": true})
 	_check(SaveManager.flush() == OK and not SaveManager.write_blocked, "Explicit reset permits save")
 	_check(SaveManager.load_slot() == OK and SaveManager.data.recovered, "Recovered save loads")
+	# Windows의 rename은 원본 삭제 후 이동한다. 그 사이 중단되면 완성된 .tmp만 남는다.
+	DirAccess.rename_absolute(SaveManager.storage_path, SaveManager.storage_path + ".tmp")
+	SaveManager.data = {}
+	_check(SaveManager.load_slot() == OK and SaveManager.data.get("recovered") == true and SaveManager.dirty, "Interrupted replace restores completed temp save")
+	_check(SaveManager.flush() == OK and FileAccess.file_exists(SaveManager.storage_path) \
+		and not FileAccess.file_exists(SaveManager.storage_path + ".tmp"), "Restored save rewritten to original path")
+	var original_path := SaveManager.storage_path
+	SaveManager.storage_path = _directory + "/saves/first_write.json"
+	_write(SaveManager.storage_path + ".tmp", "{partial")
+	_check(SaveManager.load_slot() == OK and SaveManager.data.is_empty() and not SaveManager.write_blocked, "Incomplete first-write temp starts fresh")
+	SaveManager.storage_path = original_path
+	_check(SaveManager.load_slot() == OK and SaveManager.data.recovered, "Original save path restored")
 
 func _settings_checks() -> void:
 	_check(Settings.set_setting("master_volume", 2.0) == OK and Settings.get_setting("master_volume") == 1.0, "Volume clamped")
@@ -167,6 +180,42 @@ func _settings_checks() -> void:
 		_check(Settings.reset_to_defaults() == OK, "Explicit recovery after invalid setting value")
 	Settings.changed.disconnect(listener)
 	_check(Settings.set_setting("subtitles_enabled", true) == OK and Settings.load_settings() == OK and Settings.get_setting("subtitles_enabled"), "Game-specific settings remain supported")
+	_check(Settings.defaults().language == OS.get_locale_language(), "New users start with the OS language")
+	DirAccess.rename_absolute(Settings.storage_path, Settings.storage_path + ".tmp")
+	Settings.values.subtitles_enabled = false
+	_check(Settings.load_settings() == OK and Settings.get_setting("subtitles_enabled") == true and not Settings.write_blocked, "Interrupted settings replace restores completed temp")
+	_check(Settings.save_settings() == OK and FileAccess.file_exists(Settings.storage_path), "Restored settings rewritten to original path")
+
+func _translation_checks() -> void:
+	var registered := PackedStringArray(ProjectSettings.get_setting("internationalization/locale/translations", PackedStringArray()))
+	_check("res://ui/i18n/ui.en.translation" in registered and "res://ui/i18n/ui.ko.translation" in registered, "Common UI translations registered")
+	# 공통 UI 코드에서 쓰는 모든 번역 키가 영어·한국어에 있는지 확인한다.
+	var english := TranslationServer.get_translation_object("en")
+	var korean := TranslationServer.get_translation_object("ko")
+	var missing := PackedStringArray()
+	var pattern := RegEx.create_from_string("\"(UI_[A-Z0-9_]*[A-Z0-9])\"")
+	for path in ["res://ui/menus/pause_menu.gd", "res://ui/dialogs/quit_dialogs.gd", "res://ui/settings/settings_panel.gd",
+			"res://ui/loading/loading.tscn", "res://autoload/window_manager.gd", "res://autoload/input_manager.gd", "res://scenes/bootstrap.gd"]:
+		for found in pattern.search_all(FileAccess.get_file_as_string(path)):
+			var key := found.get_string(1)
+			if english == null or korean == null or str(english.get_message(key)).is_empty() or str(korean.get_message(key)).is_empty():
+				missing.append(key)
+	for action in InputManager.COMMON_ACTIONS:
+		if korean == null or str(korean.get_message("UI_ACTION_" + str(action).to_upper())).is_empty():
+			missing.append("UI_ACTION_" + str(action).to_upper())
+	_check(missing.is_empty(), "Every common UI key has English and Korean text: " + ", ".join(missing))
+	var previous := str(Settings.get_setting("language"))
+	_check(Settings.set_setting("language", "ko") == OK and tr("UI_RESUME") == "계속하기", "Korean common UI text applies")
+	_check(InputManager.action_text(&"move_left") == "왼쪽 이동" and InputManager.action_text(&"custom_jump") == "Custom Jump", "Action names translate with readable fallback")
+	var panel := SettingsPanel.new()
+	add_child(panel)
+	_check(panel._binding_label.text.contains("키보드"), "Settings panel shows Korean text")
+	var english_index := panel._language_index("en")
+	_check(panel._language.item_count >= 2 and english_index != -1 and panel._language.get_item_text(panel._language_index("ko")) == "한국어", "Language picker lists native names")
+	panel._language.item_selected.emit(english_index)
+	_check(Settings.get_setting("language") == "en" and tr("UI_RESUME") == "Resume" and panel._binding_label.text.contains("Keyboard"), "Language picker switches UI text immediately")
+	panel.free()
+	Settings.set_setting("language", previous)
 
 func _input_checks() -> void:
 	_check(InputMap.has_action("move_left") and InputMap.has_action("primary_action"), "Default input exists")
@@ -211,6 +260,9 @@ func _input_checks() -> void:
 	_write(InputManager.storage_path, "[bindings]\ntest_later=[{\"type\":\"key\",\"physical\":79}]\n")
 	_check(InputManager.load_bindings() == OK and not InputMap.has_action(&"test_later"), "Bindings for unregistered actions wait for registration")
 	_check(InputManager.save_bindings() == OK and FileAccess.get_file_as_string(InputManager.storage_path).contains("test_later"), "Unregistered bindings preserved on save")
+	# Windows 교체 중단: 원본이 지워지고 완성된 .tmp만 남은 상태를 복구한다.
+	DirAccess.rename_absolute(InputManager.storage_path, InputManager.storage_path + ".tmp")
+	_check(InputManager.load_bindings() == OK and not InputManager.write_blocked, "Interrupted bindings replace restores completed temp")
 	_check(InputManager.register_action(&"test_later", [DefaultInput.key(KEY_P)]) == OK \
 		and InputManager.slot_events(&"test_later", "keyboard_mouse")[0].physical_keycode == KEY_O, "Saved binding applied when action registers")
 	var load_errors: Array[int] = []
@@ -368,6 +420,7 @@ func _service_checks() -> void:
 func _display_checks() -> void:
 	if not DesktopPlatform.has_window():
 		_check(WindowManager.preview_options({"window_mode": "borderless"}) == ERR_UNAVAILABLE, "Headless window operations skipped")
+		_check(WindowManager.toggle_fullscreen() == ERR_UNAVAILABLE, "Headless fullscreen shortcut skipped")
 		return
 	var previous := WindowManager.current_options()
 	_check(WindowManager.preview_options({"vsync": not previous.vsync}, 1.0) == OK, "Display preview accepted")
@@ -376,6 +429,15 @@ func _display_checks() -> void:
 	_check(not WindowManager.previewing and WindowManager.current_options() == previous, "Unconfirmed display change rolls back")
 	_check(WindowManager.preview_options({"vsync": not previous.vsync}) == OK, "Second display preview accepted")
 	_check(WindowManager.confirm_preview() == OK and Settings.get_setting("vsync") != previous.vsync, "Confirmed display change persisted")
+	Settings.set_setting("window_mode", "windowed")
+	_check(WindowManager.toggle_fullscreen() == OK and not WindowManager.previewing \
+		and not WindowManager._confirmation.visible and Settings.get_setting("window_mode") == "borderless", "Fullscreen shortcut saves and applies without confirmation")
+	_check(WindowManager.toggle_fullscreen() == OK and Settings.get_setting("window_mode") == "windowed", "Fullscreen shortcut returns to windowed mode")
+	_check(WindowManager.preview_options({"vsync": not previous.vsync}) == OK and WindowManager.toggle_fullscreen() == ERR_BUSY, "Fullscreen shortcut waits for display preview")
+	WindowManager.revert_preview()
+	Settings.write_blocked = true
+	_check(WindowManager.toggle_fullscreen() == ERR_UNAUTHORIZED and Settings.get_setting("window_mode") == "windowed", "Failed fullscreen save keeps current mode")
+	Settings.write_blocked = false
 	Settings.set_many(previous)
 	WindowManager.apply_saved_options()
 	var panel := SettingsPanel.new()

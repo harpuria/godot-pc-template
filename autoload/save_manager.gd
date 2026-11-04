@@ -59,6 +59,8 @@ func load_slot() -> Error:
 		return OK
 	if error != OK:
 		return _load_error(error)
+	if result.get("recovered", false):
+		push_warning("Save restored from an interrupted replace: %s.tmp" % storage_path)
 	var document: Dictionary = result.document
 	if not document.get("data") is Dictionary:
 		return _load_error(ERR_INVALID_DATA)
@@ -84,7 +86,8 @@ func load_slot() -> Error:
 		candidate = next
 		version += 1
 	data = candidate
-	dirty = migrated
+	# migration 또는 임시 파일 복구 결과는 원본 경로에 다시 기록한다.
+	dirty = migrated or bool(result.get("recovered", false))
 	write_blocked = false
 	loaded.emit()
 	return OK

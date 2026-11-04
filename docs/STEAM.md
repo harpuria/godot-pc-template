@@ -35,6 +35,7 @@ timeout_seconds=15.0
 ## 실제 Adapter 붙이기
 
 1. Godot **4.7.2 Standard**, Windows x86_64, macOS universal, Linux x86_64에 맞는 플러그인과 native SDK 조합을 고른다. GodotSteam 같은 후보의 **정확한 release/tag/commit**, 라이선스, SDK 버전과 platform별 바이너리를 조사한다. 현재 선택·설치한 후보는 없다.
+   2026-11-04 조사 시점의 후보 정보는 [의존성](DEPENDENCIES.md#선택적-도구와-sdk--deferred)에 있다. 설치 직전에 공식 배포처에서 다시 확인한다.
 2. `docs/DEPENDENCIES.md`와 README BOM에 고른 조합의 정확한 버전과 호환성 근거를 기록한다.
 3. `game/platform/steam_adapter.gd`가 `StoreAdapter`를 상속하여 SDK 초기화·capabilities·poll·execute·shutdown을 구현하게 한다. 여러 게임이 공유할 검증된 구현이 된 경우 `services/store/`로 옮길 수 있다.
 4. 이미 있는 `game/game_init.gd`의 hook에 Steam 채널에서만 Adapter를 등록하는 코드를 추가한다(기존 등록 코드와 합친다).
@@ -55,7 +56,8 @@ func before_app_initialize() -> Dictionary:
 
 5. `config/game.cfg`에서 `[services] mode="native"`를 설정한다(`init_script`는 이미 `game/game_init.gd`로 연결되어 있다). Editor에서 연결을 확인하려면 `[distribution] channel="steam"`을 사용한다. export에서는 preset feature가 우선한다.
 6. `steam_only_filter`에 Steam addon 경로를 지정하고 Standalone/Itch 결과물에 SDK가 들어가지 않는지 확인한다. plugin autoload·GDExtension의 초기화도 채널을 확인하도록 구성한다.
-7. 실제 계정과 배포하는 각 OS의 Debug/Release에서 초기화·콜백·오프라인·overlay·종료를 확인한다.
+7. macOS에서 공증을 위해 hardened runtime으로 서명하면 다른 팀 ID로 서명된 Steam 라이브러리 로드가 막힐 수 있다. 라이브러리를 함께 다시 서명하거나 export preset의 library validation 해제 entitlement를 검토하고, 서명한 `.app`으로 Steam 초기화를 확인한다.
+8. 실제 계정과 배포하는 각 OS의 Debug/Release에서 초기화·콜백·오프라인·overlay·종료를 확인한다.
 
 ## Adapter 계약
 

@@ -21,6 +21,7 @@ ui/dialogs/            종료 확인·저장 실패 대화상자 (QuitDialogs, A
 ui/settings/           재사용 화면·음량·입력 설정 패널 (SettingsPanel)
 ui/loading/            장면 전환 로딩 화면
 ui/theme/              프로젝트 기본 Theme
+ui/i18n/               공통 UI 번역 (ui.csv: en, ko)
 game/                  게임 코드·리소스. main.tscn(첫 장면)과 game_init.gd(초기화 hook) 골격 포함
 scenes/                bootstrap(진입점), 데모와 장면 이동 예제
 config/game.cfg        공개 게임 설정
@@ -47,7 +48,7 @@ build/                 로컬 export 결과 (Git 제외)
 | Adapter | 실제 SDK(예: GodotSteam)를 `StoreAdapter` 계약에 맞게 감싼 클래스 |
 | Mock | SDK 없이 성공 결과를 흉내 내는 개발용 Adapter. Debug 빌드에서만 동작한다 |
 | pause 이유 | `menu`, `focus`, `quit_dialog` 등 이름별 pause. 모두 해제되어야 게임이 다시 움직인다 |
-| 화면 미리보기 | 화면 설정을 먼저 적용하고 15초 안에 확인해야 저장하는 방식. 확인하지 않으면 되돌린다 |
+| 화면 미리보기 | 화면 설정을 먼저 적용하고 15초 안에 확인해야 저장하는 방식. 확인하지 않으면 되돌린다. F11 / Alt+Enter 전환은 확인 없이 바로 저장한다 |
 | 주 입력 / 보조 입력 | action마다 장치 종류(키보드·마우스 / 게임패드)별로 바꿀 수 있는 두 칸 |
 
 ## 설정 (`config/game.cfg`)
@@ -79,7 +80,7 @@ godot --headless --path . --editor --import --quit
 godot --headless --path . --script res://tools/configure.gd
 ```
 
-configure는 앱 정보, 화면 크기, 없는 기본 action과 export preset 0~8번(Windows·macOS·Linux × Standalone·Itch·Steam)을 갱신하고 `build/` 출력 폴더를 만든다. 이미 있는 Input Map, 추가 custom feature, 서명·아이콘 같은 preset 옵션은 유지한다. 직접 만든 preset은 9번 이후에 두며, 0~8번 자리에 다른 이름의 preset이 있으면 덮어쓰지 않고 실패한다.
+configure는 앱 정보, 화면 크기, 없는 기본 action, 공통 UI 번역 등록과 export preset 0~8번(Windows·macOS·Linux × Standalone·Itch·Steam)을 갱신하고 `build/` 출력 폴더를 만든다. 이미 있는 Input Map, 추가 custom feature, 서명·아이콘 같은 preset 옵션은 유지한다. 직접 만든 preset은 9번 이후에 두며, 0~8번 자리에 다른 이름의 preset이 있으면 덮어쓰지 않고 실패한다.
 
 ## 사용자 데이터 파일
 

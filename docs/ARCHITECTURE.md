@@ -34,7 +34,7 @@ hook 계약:
 - SaveManager: `user://saves/slot_1.json`의 `{version, data}` envelope, dirty 자동 저장과 순차 migration. JSON 호환 게임 데이터만 저장한다.
 - Settings: `user://settings.cfg`의 음량·언어·화면 옵션과 게임별 추가 설정.
 - InputManager: `user://input.cfg`의 입력 종류와 숫자 필드. arbitrary Object를 역직렬화하지 않는다.
-- JsonStore: 디렉터리 생성 → 같은 디렉터리의 `.tmp` 기록·flush → rename 교체.
+- JsonStore: 디렉터리 생성 → 같은 디렉터리의 `.tmp` 기록·flush → rename 교체. Windows의 rename은 기존 파일을 지운 뒤 이동하므로, 원본이 없고 읽을 수 있는 `.tmp`만 남아 있으면 그 내용을 불러와 원본 경로에 다시 저장한다. Settings·InputManager도 같은 방식으로 `.tmp`를 확인한다.
 
 진행 저장의 parse·schema·migration 실패는 메모리와 원본을 보존하고 이후 쓰기를 차단한다. 미래 버전·분수 version도 거절한다. 정상 load 또는 사용자 선택 이후 `reset_slot()`로 차단을 해제한다. 설정과 바인딩도 손상 시 원본 교체를 차단하고 명시적 reset을 제공한다.
 
@@ -46,7 +46,7 @@ Settings는 파일의 모든 값을 먼저 검증한다. 알려진 키의 타입
 
 ## 화면 설정과 입력
 
-WindowManager는 windowed / borderless / exclusive fullscreen, 창 크기, VSync, FPS 제한을 담당한다. 후보는 저장 전에 적용하고 15초 뒤 자동 복구한다. 앱 수명의 확인창을 사용하므로 게임 장면과 독립적으로 확인할 수 있다. 확인 시 Settings 저장이 실패하면 이전 값으로 복구하고 `preview_failed(error)`를 보낸다. SettingsPanel은 이를 `operation_failed`로 전달한다. 자체 UI도 실패 신호를 구독한다. 창 모드 resize는 0.5초 뒤 기록한다. 화면 설정은 모니터·OS가 실제 지원하는 범위에 제약을 받는다.
+WindowManager는 windowed / borderless / exclusive fullscreen, 창 크기, VSync, FPS 제한을 담당한다. 후보는 저장 전에 적용하고 15초 뒤 자동 복구한다. 단축키 전환(`toggle_fullscreen()`, F11 / Alt+Enter)은 모니터 해상도를 바꾸지 않는 창 ↔ 테두리 없는 전체 화면 전환이므로 확인창 없이 Settings에 저장한 뒤 적용하고, 저장에 실패하면 화면을 바꾸지 않고 오류를 반환한다. 앱 수명의 확인창을 사용하므로 게임 장면과 독립적으로 확인할 수 있다. 확인 시 Settings 저장이 실패하면 이전 값으로 복구하고 `preview_failed(error)`를 보낸다. SettingsPanel은 이를 `operation_failed`로 전달한다. 자체 UI도 실패 신호를 구독한다. 창 모드 resize는 0.5초 뒤 기록한다. 화면 설정은 모니터·OS가 실제 지원하는 범위에 제약을 받는다.
 
 InputManager는 공통 action(`COMMON_ACTIONS`)과 게임이 `register_action()`으로 등록한 action을 재설정·저장한다. 기본 바인딩은 Input Map(Project Settings)이 기준이고, 없는 action은 등록 시 넘긴 기본값으로 만든다. configure는 기존 action을 덮어쓰지 않는다.
 
@@ -56,6 +56,10 @@ InputManager는 공통 action(`COMMON_ACTIONS`)과 게임이 `register_action()`
 - 컨트롤 표시 아이콘과 로컬 다인 입력의 장치 배정은 게임이 추가한다. 게임패드 이벤트는 `device=-1`로 모든 컨트롤러를 받는다.
 
 캡처 중 Ctrl·Shift·Alt·Meta 단독 press/release는 소비하고 다음 조합 키를 기다린다. 수정키 단독 바인딩은 캡처 UI에서 제공하지 않으며 Escape는 조합 여부와 관계없이 취소한다.
+
+## 공통 UI 문구
+
+PauseMenu, SettingsPanel, QuitDialogs, 화면 확인창, 로딩·시작 실패 문구는 `ui/i18n/ui.csv`의 `UI_*` 번역 키를 쓴다(English / 한국어). Control의 자동 번역과 `tr()`을 사용하므로 `Settings`의 `language`를 바꾸면 열린 UI도 바로 바뀐다. configure가 두 번역 파일을 Project Settings에 등록하며 게임이 추가한 번역은 유지한다. 설정 패널의 언어 목록은 불러온 번역에서 만들고 각 번역의 `UI_LANGUAGE_NAME`을 표시한다. action 이름은 `UI_ACTION_<ACTION>` 키가 있으면 번역하고 없으면 이름을 읽기 쉽게 바꿔 표시한다.
 
 ## Pause·포커스·종료
 
