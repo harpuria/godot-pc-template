@@ -8,16 +8,17 @@ var _failure := AcceptDialog.new()
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_confirm.title = "Quit game?"
-	_confirm.dialog_text = "Your progress will be saved before quitting."
-	_confirm.ok_button_text = "Save and quit"
+	_confirm.title = "UI_QUIT_TITLE"
+	_confirm.dialog_text = "UI_QUIT_TEXT"
+	_confirm.ok_button_text = "UI_QUIT_SAVE"
+	_confirm.cancel_button_text = "UI_CANCEL"
 	_confirm.confirmed.connect(_on_confirmed)
 	_confirm.canceled.connect(_release)
 	add_child(_confirm)
-	_failure.title = "Progress could not be saved"
-	_failure.ok_button_text = "Stay"
-	_failure.add_button("Retry", false, "retry")
-	_failure.add_button("Quit without saving", false, "discard")
+	_failure.title = "UI_SAVE_FAILED_TITLE"
+	_failure.ok_button_text = "UI_STAY"
+	_failure.add_button("UI_RETRY", false, "retry")
+	_failure.add_button("UI_QUIT_WITHOUT_SAVING", false, "discard")
 	_failure.confirmed.connect(_release)
 	_failure.canceled.connect(_release)
 	_failure.custom_action.connect(_on_failure_action)
@@ -31,7 +32,7 @@ func confirm_quit() -> void:
 ## 저장 실패를 알리고 머무르기·재시도·저장 없이 종료 중 하나를 선택받는다.
 func show_save_failure(error: int) -> void:
 	App.set_paused(PAUSE_REASON, true)
-	_failure.dialog_text = "Save failed: %s\nStay and try again later, retry now, or quit without saving." % error_string(error)
+	_failure.dialog_text = tr("UI_SAVE_FAILED_TEXT") % error_string(error)
 	_failure.popup_centered(Vector2i(480, 200))
 
 ## 종료 확인 또는 저장 실패 대화상자가 열려 있는지 반환한다.

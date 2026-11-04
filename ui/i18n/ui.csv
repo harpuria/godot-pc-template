@@ -1,0 +1,69 @@
+keys,en,ko
+UI_LANGUAGE_NAME,English,한국어
+UI_LOADING,Loading…,불러오는 중…
+UI_PAUSED,PAUSED,일시 정지
+UI_RESUME,Resume,계속하기
+UI_SETTINGS,Settings,설정
+UI_QUIT,Quit,종료
+UI_QUIT_TITLE,Quit game?,게임을 종료할까요?
+UI_QUIT_TEXT,Your progress will be saved before quitting.,종료하기 전에 진행 상황을 저장합니다.
+UI_QUIT_SAVE,Save and quit,저장 후 종료
+UI_CANCEL,Cancel,취소
+UI_SAVE_FAILED_TITLE,Progress could not be saved,진행 상황을 저장하지 못했습니다
+UI_SAVE_FAILED_TEXT,"Save failed: %s
+Stay and try again later, retry now, or quit without saving.","저장 실패: %s
+게임으로 돌아가 나중에 다시 시도하거나, 지금 다시 시도하거나, 저장하지 않고 종료할 수 있습니다."
+UI_STAY,Stay,돌아가기
+UI_RETRY,Retry,다시 시도
+UI_QUIT_WITHOUT_SAVING,Quit without saving,저장하지 않고 종료
+UI_DISPLAY_KEEP_TITLE,Keep display settings?,화면 설정을 유지할까요?
+UI_DISPLAY_KEEP,Keep settings,유지
+UI_DISPLAY_REVERT,Revert,되돌리기
+UI_DISPLAY_COUNTDOWN,"Reverting in %d seconds.
+Confirm only if the display looks correct.","%d초 후 이전 설정으로 돌아갑니다.
+화면이 올바르게 보일 때만 유지하세요."
+UI_HEADING_DISPLAY,DISPLAY,화면
+UI_HEADING_AUDIO,AUDIO,소리
+UI_HEADING_INPUT,INPUT,입력
+UI_LANGUAGE,Language,언어
+UI_WINDOW_MODE,Window mode,창 모드
+UI_MODE_WINDOWED,Windowed,창 모드
+UI_MODE_BORDERLESS,Borderless fullscreen,테두리 없는 전체 화면
+UI_MODE_FULLSCREEN,Exclusive fullscreen,전용 전체 화면
+UI_WINDOW_SIZE,Window size,창 크기
+UI_WINDOW_SIZE_CUSTOM,%d × %d (custom),%d × %d (사용자 지정)
+UI_VSYNC,VSync,수직 동기화
+UI_FRAME_LIMIT,Frame limit,프레임 제한
+UI_FPS_UNLIMITED,Unlimited,제한 없음
+UI_PREVIEW_DISPLAY,Preview display settings,화면 설정 미리보기
+UI_VOLUME_MASTER,MASTER,전체
+UI_VOLUME_BGM,BGM,배경 음악
+UI_VOLUME_SFX,SFX,효과음
+UI_VOLUME_UI,UI,UI 효과음
+UI_ACTION,Action,동작
+UI_KEYBOARD_MOUSE,Keyboard / mouse,키보드 / 마우스
+UI_CONTROLLER,Controller,컨트롤러
+UI_REBIND_PRIMARY,Rebind primary,주 입력 변경
+UI_REBIND_SECONDARY,Rebind secondary,보조 입력 변경
+UI_PRESS_INPUT,Press a key / button (Esc cancels),키나 버튼을 누르세요 (Esc 취소)
+UI_RESTORE_CONTROLS,Restore default controls,기본 조작으로 복원
+UI_ACTION_MOVE_LEFT,Move left,왼쪽 이동
+UI_ACTION_MOVE_RIGHT,Move right,오른쪽 이동
+UI_ACTION_MOVE_UP,Move up,위쪽 이동
+UI_ACTION_MOVE_DOWN,Move down,아래쪽 이동
+UI_ACTION_PRIMARY_ACTION,Primary action,주 행동
+UI_ACTION_PAUSE,Pause,일시 정지
+UI_ACTION_TOGGLE_FULLSCREEN,Toggle fullscreen,전체 화면 전환
+UI_AXIS_LEFT_X,Left Stick X,왼쪽 스틱 X
+UI_AXIS_LEFT_Y,Left Stick Y,왼쪽 스틱 Y
+UI_AXIS_RIGHT_X,Right Stick X,오른쪽 스틱 X
+UI_AXIS_RIGHT_Y,Right Stick Y,오른쪽 스틱 Y
+UI_AXIS_LEFT_TRIGGER,Left Trigger,왼쪽 트리거
+UI_AXIS_RIGHT_TRIGGER,Right Trigger,오른쪽 트리거
+UI_AXIS_OTHER,Axis %d,축 %d
+UI_START_FAILED,"The game could not start (%s).
+Check the log for details.","게임을 시작할 수 없습니다 (%s).
+자세한 내용은 로그를 확인하세요."
+UI_MAIN_SCENE_FAILED,"Cannot open the main scene:
+%s","첫 장면을 열 수 없습니다:
+%s"

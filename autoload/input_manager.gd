@@ -12,7 +12,7 @@ const COMMON_ACTIONS: Array[StringName] = [&"move_left", &"move_right", &"move_u
 ## 장치 종류마다 설정 UI에서 바꿀 수 있는 칸 수다. 0은 주 입력, 1은 보조 입력이다.
 const SLOTS := 2
 const CATEGORIES: Array[String] = ["keyboard_mouse", "controller"]
-const _AXIS_NAMES := ["Left Stick X", "Left Stick Y", "Right Stick X", "Right Stick Y", "Left Trigger", "Right Trigger"]
+const _AXIS_NAMES := ["UI_AXIS_LEFT_X", "UI_AXIS_LEFT_Y", "UI_AXIS_RIGHT_X", "UI_AXIS_RIGHT_Y", "UI_AXIS_LEFT_TRIGGER", "UI_AXIS_RIGHT_TRIGGER"]
 var storage_path := "user://input.cfg"
 var active_device := "keyboard_mouse"
 var capturing: StringName = &""
@@ -181,6 +181,12 @@ func slot_text(action: StringName, category: String, slot: int) -> String:
 	var events := slot_events(action, category)
 	return event_text(events[slot]) if slot >= 0 and slot < events.size() else "—"
 
+## 설정 화면에 표시할 action 이름이다. 번역 키 UI_ACTION_<ACTION>이 있으면 번역하고, 없으면 이름을 읽기 쉽게 바꾼다.
+static func action_text(action: StringName) -> String:
+	var key := "UI_ACTION_" + str(action).to_upper()
+	var translated := str(TranslationServer.translate(key))
+	return str(action).capitalize() if translated == key else translated
+
 ## 설정 화면에서 표시할 바인딩 문자열을 반환한다.
 func binding_text(action: StringName) -> String:
 	var descriptions := PackedStringArray()
@@ -193,7 +199,8 @@ static func event_text(event: InputEvent) -> String:
 	if event is InputEventKey and event.physical_keycode != 0:
 		return OS.get_keycode_string(event.get_physical_keycode_with_modifiers())
 	if event is InputEventJoypadMotion:
-		var axis_name: String = _AXIS_NAMES[event.axis] if event.axis < _AXIS_NAMES.size() else "Axis %d" % event.axis
+		var axis_name := str(TranslationServer.translate(_AXIS_NAMES[event.axis])) if event.axis < _AXIS_NAMES.size() \
+			else str(TranslationServer.translate("UI_AXIS_OTHER")) % event.axis
 		return "%s %s" % [axis_name, "+" if event.axis_value > 0.0 else "-"]
 	return event.as_text()
 

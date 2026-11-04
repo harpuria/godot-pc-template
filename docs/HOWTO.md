@@ -144,7 +144,14 @@ MENU_START,Start,시작
 3. 코드에서는 `tr("MENU_START")`, 장면의 Label·Button은 text에 키(`MENU_START`)를 그대로 쓴다.
 4. 언어 변경은 `Settings.set_setting("language", "ko")`다. 다음 실행에도 유지된다. 새 사용자의 기본값은 OS 언어(`OS.get_locale_language()`)이며, 번역이 없는 언어는 Project Settings의 fallback locale로 표시된다.
 
-공통 UI(pause 메뉴·설정 화면·대화상자) 문구는 영어 고정이다. 번역이 필요하면 해당 문구를 키로 바꾸고 CSV에 추가한다.
+공통 UI(pause 메뉴·설정 화면·대화상자·화면 확인창)는 `ui/i18n/ui.csv`에 English / 한국어가 이미 있다. 설정 화면의 **Language(언어)** 목록은 불러온 번역에서 자동으로 만들어진다.
+
+- 공통 UI 문구를 바꾸려면 `ui/i18n/ui.csv`의 해당 칸을 고친다.
+- 언어를 추가하려면 `ui/i18n/ui.csv`와 게임 CSV에 같은 언어 열(예: `ja`)을 추가하고, 생성된 `ui.ja.translation`도 Translations에 등록한다. 언어 목록에 표시할 이름은 `UI_LANGUAGE_NAME` 행에 쓴다.
+- 게임 action 이름은 게임 CSV에 `UI_ACTION_<ACTION 이름 대문자>` 키(예: `UI_ACTION_INTERACT`)를 추가하면 설정 화면에 번역되어 표시된다. 키가 없으면 `Interact`처럼 표시된다.
+- 키 이름이나 OS 키 이름(`Space` 등)은 엔진이 만든 문자열이라 번역하지 않는다.
+
+기본 글꼴에는 한글이 없어 OS 글꼴로 대체하여 표시한다. 한글 글꼴이 없는 시스템에서는 네모로 보일 수 있으므로, 출시 게임은 한글을 포함한 글꼴(라이선스 확인)을 Theme의 기본 글꼴로 지정한다.
 
 ## 앱 아이콘 바꾸기
 

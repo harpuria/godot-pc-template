@@ -28,8 +28,9 @@ Steam 클라이언트나 외부 플러그인은 필요하지 않다.
 | 진행 저장 | `Save test` → `Load test` | 같은 `demo_count`를 읽는다 |
 | 저장 위치 확인 | `Open save folder` | 설치 폴더와 분리된 사용자 폴더가 열린다 |
 | 소리 | `Play BGM`, `Play SFX`, `Play UI sound` | 버스별 재생; 오른쪽 슬라이더로 음량 조절 |
-| 화면 변경 | 모드·크기·VSync·FPS 선택 → `Preview display settings` | `Keep settings`로 저장; 15초 안에 확인하지 않으면 복구 |
-| 전체 화면 단축키 | `F11` 또는 `Alt+Enter` | 창 / 테두리 없는 전체 화면 전환 후 확인 |
+| 화면 변경 | 모드·크기·VSync·FPS 선택 → `Preview display settings`(화면 설정 미리보기) | `Keep settings`(유지)로 저장; 15초 안에 확인하지 않으면 복구 |
+| 전체 화면 단축키 | `F11` 또는 `Alt+Enter` | 창 / 테두리 없는 전체 화면을 확인창 없이 바로 전환하고 저장 |
+| 언어 | 설정의 `Language`(언어) 선택 | pause 메뉴·설정·대화상자 문구가 English / 한국어로 바로 바뀐다. 처음 실행은 OS 언어 |
 | 입력 변경 | 오른쪽 Action 선택 → `Rebind primary` / `Rebind secondary` → 키·마우스·게임패드 입력 | 누른 장치 종류의 해당 칸만 교체; `Esc`로 취소 |
 | 입력 복구 | `Restore default controls` | 기본 바인딩으로 돌아간다 |
 | pause 메뉴 | `Esc`, 게임패드 Start 또는 `Open pause menu` | 게임이 멈추고 계속하기·설정·종료 메뉴가 열린다 |
@@ -87,7 +88,7 @@ Windows는 x86_64 `.exe`와 `.pck`, macOS는 Intel/Apple Silicon 공용 Universa
 | --- | --- |
 | 새 게임 대신 데모 실행 | `config/game.cfg`의 `main_scene` 경로와 장면 저장 여부 |
 | 시작 화면에 "The game could not start" | `game/game_init.gd`가 `{"error": OK}`를 반환하는지, 로그의 `Game init script failed` |
-| 화면 옵션이 다시 돌아옴 | 15초 안에 `Keep settings`로 확인 |
+| 화면 옵션이 다시 돌아옴 | 15초 안에 `Keep settings`(유지)로 확인 |
 | 키 변경 실패 | 다른 action이나 같은 action의 다른 칸이 이미 그 입력을 쓰는지 확인; Esc는 취소용 |
 | 앱 전환 뒤 멈춤 | 창으로 돌아오면 포커스 pause가 풀린다. pause 메뉴는 Esc/Start로 닫는다 |
 | Steam 기능 `Unavailable` | SDK가 없는 Release에서는 정상. [Steam 안내](docs/STEAM.md) 확인 |

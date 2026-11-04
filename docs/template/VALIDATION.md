@@ -4,13 +4,17 @@ Template 0.1.0 및 미출시 보완의 실제 실행 기록이다. 최신 기록
 
 ## 점검 보완 검증 — 2026-11-04
 
-`.tmp` 복구, OS 언어 기본값, CI action 갱신 후 실행했다. **Linux 환경**의 결과이며 Windows/macOS 실행으로 간주하지 않는다.
+`.tmp` 복구, OS 언어 기본값, CI action 갱신 후 실행했다. 이어서 공통 UI 번역과 확인창 없는 전체 화면 단축키를 추가하고 다시 실행했다(아래 표의 최신 수치). **Linux 환경**의 결과이며 Windows/macOS 실행으로 간주하지 않는다.
 
 환경: Linux x86_64 컨테이너, Godot `4.7.2.stable.official.ed1daf0bf` 공식 Linux 바이너리, 공식 4.7.2 archive의 Windows x86_64·macOS·Linux x86_64 Debug/Release templates. 사운드 장치 없음(dummy 드라이버).
 
 | 검사 | 결과 |
 | --- | --- |
-| `tools/validate.sh` | import PASS; integration 기본 / `--disabled` / `--native` 각각 **190 checks, 0 failures**; bootstrap 실패 2종 PASS; exit 0 |
+| `tools/validate.sh` | import PASS; integration 기본 / `--disabled` / `--native` 각각 **198 checks, 0 failures**; bootstrap 실패 2종 PASS; exit 0 |
+| Xvfb GUI `--capture` | **210 checks, 0 failures**, exit 0. 단축키 전환이 확인창 없이 저장·적용되고, 미리보기 중 `ERR_BUSY`, 저장 차단 시 모드 유지 |
+| 번역 검사 | 공통 UI 코드의 모든 `UI_*` 키와 공통 action 이름에 English·한국어 문구 존재, 한국어 적용, 언어 선택으로 즉시 전환 |
+| 한국어 화면 확인 | Xvfb 캡처로 pause 메뉴·설정 패널·종료 확인창의 한국어 표시를 눈으로 확인(시스템 글꼴 WenQuanYi 대체). 엔진 기본 Cancel 버튼이 영어로 남는 것을 발견하여 `UI_CANCEL`을 추가 |
+| CSV import | 두 번 import해도 `ui.en.translation`·`ui.ko.translation`이 바이트 단위로 같음 |
 | 새 회귀 검사의 감지력 | `JsonStore` 수정을 되돌리면 `.tmp` 복구 검사 3건 FAIL |
 | configure | 새 clone에서 실행 후 `project.godot`·`export_presets.cfg` 변경 없음 |
 | 9개 preset Release export (Linux에서) | Windows·macOS·Linux × Standalone/Itch/Steam 모두 exit 0, ERROR·WARNING 0 |

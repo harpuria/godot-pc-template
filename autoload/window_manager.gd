@@ -22,9 +22,9 @@ func _ready() -> void:
 	_resize_timer.wait_time = 0.5
 	_resize_timer.timeout.connect(_remember_window_size)
 	add_child(_resize_timer)
-	_confirmation.title = "Keep display settings?"
-	_confirmation.ok_button_text = "Keep settings"
-	_confirmation.cancel_button_text = "Revert"
+	_confirmation.title = "UI_DISPLAY_KEEP_TITLE"
+	_confirmation.ok_button_text = "UI_DISPLAY_KEEP"
+	_confirmation.cancel_button_text = "UI_DISPLAY_REVERT"
 	_confirmation.confirmed.connect(confirm_preview)
 	_confirmation.canceled.connect(revert_preview)
 	add_child(_confirmation)
@@ -97,9 +97,19 @@ func revert_preview() -> void:
 func preview_seconds_left() -> float:
 	return _preview_timer.time_left
 
-## 단축키로 창 모드와 테두리 없는 전체 화면을 전환한다. 기존 preview 중에는 무시한다.
+## 단축키로 창 모드와 테두리 없는 전체 화면을 전환한다. 모니터 해상도를 바꾸지 않으므로 확인창 없이 저장하고 적용한다.
+## 화면 미리보기 중에는 ERR_BUSY, 창이 없으면 ERR_UNAVAILABLE이다. 저장에 실패하면 화면을 바꾸지 않고 오류를 반환한다.
 func toggle_fullscreen() -> Error:
-	return preview_options({"window_mode": "borderless" if Settings.get_setting("window_mode") == "windowed" else "windowed"})
+	if previewing:
+		return ERR_BUSY
+	if not DesktopPlatform.has_window():
+		return ERR_UNAVAILABLE
+	var mode := "borderless" if Settings.get_setting("window_mode") == "windowed" else "windowed"
+	var error := Settings.set_setting("window_mode", mode)
+	if error != OK:
+		return error
+	apply_saved_options()
+	return OK
 
 func _valid_options(options: Dictionary) -> bool:
 	var size: Variant = options.get("window_size")
@@ -136,4 +146,4 @@ func _remember_window_size() -> void:
 
 func _process(_delta: float) -> void:
 	if previewing:
-		_confirmation.dialog_text = "Reverting in %d seconds.\nConfirm only if the display looks correct." % ceili(_preview_timer.time_left)
+		_confirmation.dialog_text = tr("UI_DISPLAY_COUNTDOWN") % ceili(_preview_timer.time_left)

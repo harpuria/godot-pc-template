@@ -34,14 +34,14 @@ func _ready() -> void:
 	layout.add_theme_constant_override("separation", 10)
 	panel.add_child(layout)
 	var title := Label.new()
-	title.text = "PAUSED"
+	title.text = "UI_PAUSED"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 24)
 	layout.add_child(title)
-	_resume = _button(layout, "Resume", close)
-	_button(layout, "Settings", _toggle_settings)
+	_resume = _button(layout, "UI_RESUME", close)
+	_button(layout, "UI_SETTINGS", _toggle_settings)
 	if show_quit_button:
-		_button(layout, "Quit", App.dialogs.confirm_quit)
+		_button(layout, "UI_QUIT", App.dialogs.confirm_quit)
 	_settings_scroll.custom_minimum_size = Vector2(520, 360)
 	_settings_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_settings_scroll.visible = false

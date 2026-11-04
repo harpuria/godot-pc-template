@@ -10,6 +10,8 @@ const PLATFORMS := [
 	["Linux", "Linux", "linux", "x86_64"],
 ]
 const CHANNELS := ["standalone", "itch", "steam"]
+# 공통 UI(pause 메뉴·설정 패널·대화상자) 번역. 게임이 추가한 번역은 유지하고 빠진 항목만 추가한다.
+const UI_TRANSLATIONS := ["res://ui/i18n/ui.en.translation", "res://ui/i18n/ui.ko.translation"]
 
 func _initialize() -> void:
 	var actual := Engine.get_version_info()
@@ -69,6 +71,11 @@ func _initialize() -> void:
 		var key := "input/" + str(action)
 		if not ProjectSettings.has_setting(key):
 			ProjectSettings.set_setting(key, {"deadzone": float(config.get_value("input", "controller_deadzone", 0.2)), "events": inputs[action]})
+	var translations := PackedStringArray(ProjectSettings.get_setting("internationalization/locale/translations", PackedStringArray()))
+	for path: String in UI_TRANSLATIONS:
+		if not path in translations:
+			translations.append(path)
+	ProjectSettings.set_setting("internationalization/locale/translations", translations)
 	var index := 0
 	for platform_info in PLATFORMS:
 		var platform: String = platform_info[0]
@@ -133,7 +140,7 @@ func _initialize() -> void:
 	if ProjectSettings.save() != OK or presets.save("res://export_presets.cfg") != OK:
 		_fail("Could not save project settings or presets; inspect both files")
 		return
-	print("CONFIGURE: %s %s; %d PC presets; existing input and signing options preserved" % [name, version, index])
+	print("CONFIGURE: %s %s; %d PC presets; UI translations registered; existing input and signing options preserved" % [name, version, index])
 	quit(0)
 
 func _set_default(file: ConfigFile, section: String, key: String, value: Variant) -> void:

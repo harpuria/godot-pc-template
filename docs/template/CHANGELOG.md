@@ -4,11 +4,16 @@
 
 - 저장: Windows의 rename(원본 삭제 후 이동)이 중단되어 `.tmp`만 남은 경우 SaveManager·Settings·InputManager가 그 내용을 복구한다. SaveManager는 복구한 진행을 원본 경로에 다시 저장한다. 이전에는 새 게임으로 시작하여 진행이 사라질 수 있었다.
 - Settings: 새 사용자의 `language` 기본값을 `"en"`에서 OS 언어로 변경. 이전에는 설정을 한 번 저장하면 다음 실행부터 OS 언어 대신 영어가 고정되었다.
+- 공통 UI 번역: PauseMenu·SettingsPanel·QuitDialogs·화면 확인창·로딩·시작 실패 문구를 `ui/i18n/ui.csv`(English / 한국어)의 `UI_*` 키로 변경. 설정 패널에 언어 선택을 추가하고 언어를 바꾸면 열린 UI도 바로 바뀐다. `InputManager.action_text()`는 `UI_ACTION_<ACTION>` 키로 action 이름을 번역한다. configure가 공통 UI 번역을 Project Settings에 등록한다.
+- 전체 화면 단축키: F11 / Alt+Enter(`WindowManager.toggle_fullscreen()`)는 15초 확인창 없이 창 ↔ 테두리 없는 전체 화면을 바로 저장·적용한다. 미리보기 중에는 `ERR_BUSY`, 저장 실패 시 화면을 바꾸지 않고 오류를 반환한다. 설정 패널은 `options_applied`로 바뀐 모드를 표시한다.
 - CI: Node 20 지원 종료에 맞춰 `actions/checkout@v5`, `actions/cache@v5`, `actions/upload-artifact@v6`으로 갱신.
 - 문서: Windows SmartScreen·macOS Gatekeeper(미서명 다운로드) 안내, macOS `.app` 이름 기준, Steam Linux 런타임·Steam Deck 준비 항목, butler 버전 일치, Steam 라이브러리와 hardened runtime 주의, 2026-11-04 버전 점검 기록.
 
 기존 게임 적용:
 
+- configure를 다시 실행하여 `ui/i18n/ui.en.translation`·`ui.ko.translation`을 등록한다. 등록하지 않으면 공통 UI에 `UI_RESUME` 같은 키가 그대로 보인다.
+- 공통 UI 버튼을 영어 문구(`"Resume"` 등)로 찾던 게임 코드는 `UI_*` 키로 바꾼다.
+- `toggle_fullscreen()`은 더 이상 `preview_started`·`preview_finished`를 보내지 않는다. 단축키 전환을 감지하려면 `options_applied` 또는 `Settings.changed`를 구독한다.
 - 게임이 `language` 기본값 `"en"`을 전제했다면 init hook 이후 직접 지정하거나 `Settings.defaults()` 결과를 확인한다. 이미 저장된 사용자 설정은 바뀌지 않는다.
 
 ## 미출시 — 개발 착수 보완 (2026-10-07)
