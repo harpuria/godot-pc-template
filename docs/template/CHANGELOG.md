@@ -6,6 +6,7 @@
 - Settings: 새 사용자의 `language` 기본값을 `"en"`에서 OS 언어로 변경. 이전에는 설정을 한 번 저장하면 다음 실행부터 OS 언어 대신 영어가 고정되었다.
 - 공통 UI 번역: PauseMenu·SettingsPanel·QuitDialogs·화면 확인창·로딩·시작 실패 문구를 `ui/i18n/ui.csv`(English / 한국어)의 `UI_*` 키로 변경. 설정 패널에 언어 선택을 추가하고 언어를 바꾸면 열린 UI도 바로 바뀐다. `InputManager.action_text()`는 `UI_ACTION_<ACTION>` 키로 action 이름을 번역한다. configure가 공통 UI 번역을 Project Settings에 등록한다.
 - 전체 화면 단축키: F11 / Alt+Enter(`WindowManager.toggle_fullscreen()`)는 15초 확인창 없이 창 ↔ 테두리 없는 전체 화면을 바로 저장·적용한다. 미리보기 중에는 `ERR_BUSY`, 저장 실패 시 화면을 바꾸지 않고 오류를 반환한다. 설정 패널은 `options_applied`로 바뀐 모드를 표시한다.
+- 테스트: `Slot text is short and readable`이 컨트롤러 표시를 영어 문자열로 고정 비교해 한국어 등 영어가 아닌 OS에서 실패했다. 영어·한국어로 각각 언어를 정해 비교하도록 바꾸고(검사 1개 추가), 끝나면 원래 언어로 되돌린다.
 - CI: Node 20 지원 종료에 맞춰 `actions/checkout@v5`, `actions/cache@v5`, `actions/upload-artifact@v6`으로 갱신.
 - 문서: Windows SmartScreen·macOS Gatekeeper(미서명 다운로드) 안내, macOS `.app` 이름 기준, Steam Linux 런타임·Steam Deck 준비 항목, butler 버전 일치, Steam 라이브러리와 hardened runtime 주의, 2026-11-04 버전 점검 기록.
 
