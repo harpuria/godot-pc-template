@@ -100,6 +100,8 @@ func _run() -> void:
 	_check(get_tree().current_scene.scene_file_path == "res://game/main.tscn" \
 		and get_tree().current_scene.get_children().any(func(child: Node): return child is PauseMenu), "Game skeleton enters with pause menu")
 	await get_tree().process_frame
+	AudioManager.stop_bgm()
+	await _wait_for_audio_cleanup()
 	if not "--capture" in args:
 		_cleanup(_directory)
 	print("INTEGRATION: %d checks, %d failures" % [_checks, _failures])
@@ -493,8 +495,14 @@ func _audio_checks() -> void:
 	AudioManager.stop_bgm()
 	_check(not AudioManager.bgm.playing, "BGM stopped")
 	_check(AudioServer.get_bus_index("UI") >= 0, "Separate UI audio bus")
-	# 오디오 스레드가 stop한 재생기를 정리할 tick을 허용한 뒤 검사를 종료한다.
-	await get_tree().create_timer(0.05, true).timeout
+	await _wait_for_audio_cleanup()
+
+## 멈춘 재생 객체(AudioStreamPlayback)는 오디오 스레드와 메인 스레드가 번갈아 정리한다. 바로 종료하면 가끔
+## 정리 전에 끝나 `ObjectDB instances were leaked`·`resources still in use` 경고가 남으므로 시간과 프레임을 넉넉히 준다.
+func _wait_for_audio_cleanup() -> void:
+	await get_tree().create_timer(0.25, true).timeout
+	for i in 5:
+		await get_tree().process_frame
 
 func _check(condition: bool, description: String) -> void:
 	_checks += 1
