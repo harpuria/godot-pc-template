@@ -4,6 +4,7 @@ extends Node
 var bgm := AudioStreamPlayer.new()
 var effect_players: Array[AudioStreamPlayer] = []
 var _suspended := false
+var _ui_suspended := false
 const MAX_EFFECTS = 16
 
 func _ready() -> void:
@@ -18,9 +19,12 @@ func _ready() -> void:
 	for bus in ["master", "bgm", "sfx", "ui"]:
 		_apply_setting(bus + "_volume", Settings.get_setting(bus + "_volume", 0.8))
 
-## 전달받은 BGM 스트림을 재생한다. 반복 여부는 AudioStream 리소스에서 지정한다.
-func play_bgm(stream: AudioStream) -> void:
+## 전달받은 BGM 스트림을 재생한다. 이미 같은 스트림이 재생 중이면 restart가 true일 때만 처음부터 다시 시작한다.
+func play_bgm(stream: AudioStream, restart: bool = false) -> void:
 	if stream == null:
+		return
+	if bgm.stream == stream and bgm.playing and not restart:
+		bgm.stream_paused = _suspended
 		return
 	bgm.stream = stream
 	bgm.play()
@@ -39,7 +43,7 @@ func play_ui(stream: AudioStream) -> void:
 	_play_effect(stream, "UI")
 
 func _play_effect(stream: AudioStream, bus: String) -> void:
-	if stream == null or effect_players.size() >= MAX_EFFECTS:
+	if stream == null or _bus_player_count(bus) >= MAX_EFFECTS:
 		return
 	var player := AudioStreamPlayer.new()
 	player.stream = stream
@@ -50,7 +54,15 @@ func _play_effect(stream: AudioStream, bus: String) -> void:
 		effect_players.erase(player)
 		player.queue_free())
 	player.play()
-	player.stream_paused = _suspended
+	player.stream_paused = _ui_suspended if bus == "UI" else _suspended
+
+func _bus_player_count(bus: String) -> int:
+	var target := StringName(bus)
+	var count := 0
+	for player in effect_players:
+		if player.bus == target:
+			count += 1
+	return count
 
 func _apply_setting(key: String, value: Variant) -> void:
 	var bus_key := key.trim_suffix("_volume")
@@ -61,9 +73,14 @@ func _apply_setting(key: String, value: Variant) -> void:
 		AudioServer.set_bus_volume_db(index, linear_to_db(maxf(volume, 0.0001)))
 		AudioServer.set_bus_mute(index, volume == 0.0)
 
-## 앱이 백그라운드에 있을 때 재생 위치를 유지한 채 일시 정지한다.
-func set_suspended(suspended: bool) -> void:
+## 슬라이더 드래그 중 디스크 저장 전에 오디오 버스 음량만 즉시 반영한다.
+func preview_volume(key: String, value: float) -> void:
+	_apply_setting(key, value)
+
+## 재생 위치를 유지한 채 오디오를 일시 정지한다. 메뉴 pause처럼 UI 효과음을 남길 때는 include_ui를 false로 둔다.
+func set_suspended(suspended: bool, include_ui: bool = true) -> void:
 	_suspended = suspended
-	bgm.stream_paused = suspended
+	_ui_suspended = suspended and include_ui
+	bgm.stream_paused = _suspended
 	for player in effect_players:
-		player.stream_paused = suspended
+		player.stream_paused = _ui_suspended if player.bus == &"UI" else _suspended

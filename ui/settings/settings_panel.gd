@@ -12,6 +12,10 @@ var _fps := OptionButton.new()
 var _binding_label := Label.new()
 var _action := OptionButton.new()
 var _slot_buttons: Array[Button] = []
+var _clear_secondary := Button.new()
+var _volume_sliders: Dictionary = {}
+var _dragging_volume := ""
+var _owns_capture := false
 const MODES := ["windowed", "borderless", "fullscreen"]
 const SIZES := [Vector2i(960, 540), Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]
 const FPS_LIMITS := [0, 30, 60, 120, 144, 240]
@@ -51,18 +55,10 @@ func _ready() -> void:
 	_refresh_display()
 	_heading("UI_HEADING_AUDIO")
 	for bus in ["master", "bgm", "sfx", "ui"]:
-		var slider := HSlider.new()
-		slider.min_value = 0.0
-		slider.max_value = 1.0
-		slider.step = 0.05
-		slider.custom_minimum_size.x = 180
-		slider.value = float(Settings.get_setting(bus + "_volume", 0.8))
-		slider.value_changed.connect(func(value: float):
-			var error := Settings.set_setting(bus + "_volume", value)
-			if error != OK:
-				slider.set_value_no_signal(float(Settings.get_setting(bus + "_volume", 0.8)))
-			_report(error))
+		var key: String = bus + "_volume"
+		var slider := _create_volume_slider(key)
 		_row("UI_VOLUME_" + bus.to_upper(), slider)
+	Settings.changed.connect(_on_setting_changed)
 	_heading("UI_HEADING_INPUT")
 	_action.item_selected.connect(func(_index: int): _refresh_binding())
 	_row("UI_ACTION", _action)
@@ -78,18 +74,28 @@ func _ready() -> void:
 		slots.add_child(button)
 		_slot_buttons.append(button)
 	add_child(slots)
+	var controls := HBoxContainer.new()
+	_clear_secondary.text = "UI_CLEAR_SECONDARY"
+	_clear_secondary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_clear_secondary.pressed.connect(func(): _report(InputManager.clear_slot(_selected_action(), InputManager.active_device, 1)))
+	controls.add_child(_clear_secondary)
 	var reset := Button.new()
 	reset.text = "UI_RESTORE_CONTROLS"
+	reset.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	reset.pressed.connect(func(): _report(InputManager.reset_bindings()))
-	add_child(reset)
+	controls.add_child(reset)
+	add_child(controls)
 	InputManager.bindings_changed.connect(func(changed_action: StringName):
 		if not changed_action.is_empty() and _action_index(changed_action) == -1:
 			_refresh_actions()
 		_refresh_binding())
+	InputManager.device_changed.connect(func(_device: String): _refresh_binding())
 	InputManager.capture_finished.connect(func(_captured_action: StringName, error: int):
+		var owned := _owns_capture
+		_owns_capture = false
 		_set_capturing(-1)
 		_refresh_binding()
-		if error != ERR_SKIP:
+		if owned and error != ERR_SKIP:
 			_report(error))
 	_refresh_binding()
 
@@ -116,33 +122,70 @@ func _row(label_text: String, control: Control) -> void:
 	row.add_child(control)
 	add_child(row)
 
+func _create_volume_slider(key: String) -> HSlider:
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.05
+	slider.custom_minimum_size.x = 180
+	slider.value = float(Settings.get_setting(key, 0.8))
+	_volume_sliders[key] = slider
+	slider.drag_started.connect(func(): _dragging_volume = key)
+	slider.drag_ended.connect(func(_changed: bool):
+		if _dragging_volume == key:
+			_dragging_volume = ""
+			_commit_volume(key, slider, slider.value))
+	slider.value_changed.connect(func(value: float):
+		if _dragging_volume == key and not Settings.write_blocked:
+			AudioManager.preview_volume(key, value)
+		else:
+			_commit_volume(key, slider, value))
+	return slider
+
+func _commit_volume(key: String, slider: HSlider, value: float) -> void:
+	var error := Settings.set_setting(key, value)
+	if error != OK:
+		var saved := float(Settings.get_setting(key, 0.8))
+		slider.set_value_no_signal(saved)
+		AudioManager.preview_volume(key, saved)
+	_report(error)
+
+func _on_setting_changed(key: String, value: Variant) -> void:
+	if _volume_sliders.has(key) and _dragging_volume != key:
+		var slider: HSlider = _volume_sliders[key]
+		slider.set_value_no_signal(float(value))
+	elif key == "language":
+		_refresh_languages()
+	elif key in WindowManager.OPTION_KEYS and not WindowManager.previewing:
+		_refresh_display()
+
 func _refresh_display() -> void:
 	var options := WindowManager.current_options()
 	_mode.selected = maxi(0, MODES.find(options.window_mode))
-	var size_index := -1
-	for index in _resolution.item_count:
-		if _resolution.get_item_metadata(index) == options.window_size:
-			size_index = index
+	var custom_size: Vector2i = options.window_size
+	var size_index := SIZES.find(custom_size)
 	if size_index == -1:
-		_resolution.add_item("")
-		size_index = _resolution.item_count - 1
-		_resolution.set_item_metadata(size_index, options.window_size)
-	for index in range(SIZES.size(), _resolution.item_count):
-		var custom: Vector2i = _resolution.get_item_metadata(index)
-		_resolution.set_item_text(index, tr("UI_WINDOW_SIZE_CUSTOM") % [custom.x, custom.y])
+		size_index = SIZES.size()
+		if _resolution.item_count <= size_index:
+			_resolution.add_item("")
+		_resolution.set_item_metadata(size_index, custom_size)
+		_resolution.set_item_text(size_index, tr("UI_WINDOW_SIZE_CUSTOM") % [custom_size.x, custom_size.y])
+	elif _resolution.item_count > SIZES.size():
+		_resolution.remove_item(SIZES.size())
 	_resolution.selected = size_index
 	_vsync.button_pressed = bool(options.vsync)
+	var custom_fps := int(options.max_fps)
+	var fps_index := FPS_LIMITS.find(custom_fps)
+	if fps_index == -1:
+		fps_index = FPS_LIMITS.size()
+		if _fps.item_count <= fps_index:
+			_fps.add_item("")
+		_fps.set_item_metadata(fps_index, custom_fps)
+	elif _fps.item_count > FPS_LIMITS.size():
+		_fps.remove_item(FPS_LIMITS.size())
 	for index in _fps.item_count:
 		var limit: int = _fps.get_item_metadata(index)
 		_fps.set_item_text(index, tr("UI_FPS_UNLIMITED") if limit == 0 else "%d FPS" % limit)
-	var fps_index := -1
-	for index in _fps.item_count:
-		if _fps.get_item_metadata(index) == options.max_fps:
-			fps_index = index
-	if fps_index == -1:
-		_fps.add_item("%d FPS" % options.max_fps if options.max_fps > 0 else tr("UI_FPS_UNLIMITED"))
-		fps_index = _fps.item_count - 1
-		_fps.set_item_metadata(fps_index, options.max_fps)
 	_fps.selected = fps_index
 
 func _preview_display() -> void:
@@ -174,17 +217,22 @@ func _refresh_binding() -> void:
 		lines.append("%s: %s" % [tr("UI_KEYBOARD_MOUSE" if category == "keyboard_mouse" else "UI_CONTROLLER"), "  ·  ".join(names)])
 	_binding_label.text = "\n".join(lines)
 	if InputManager.capturing.is_empty():
+		_owns_capture = false
 		_set_capturing(-1)
+	else:
+		_clear_secondary.disabled = true
 
 func _start_capture(slot: int) -> void:
 	var error := InputManager.start_capture(_selected_action(), slot)
 	if error == OK:
+		_owns_capture = true
 		_set_capturing(slot)
 	else:
 		_report(error)
 
 func _set_capturing(slot: int) -> void:
 	_action.disabled = slot >= 0
+	_clear_secondary.disabled = slot >= 0 or InputManager.slot_events(_selected_action(), InputManager.active_device).size() < 2
 	for index in _slot_buttons.size():
 		_slot_buttons[index].disabled = slot >= 0 and index != slot
 		_slot_buttons[index].text = "UI_PRESS_INPUT" if index == slot else SLOT_KEYS[index]
@@ -194,21 +242,24 @@ func _refresh_languages() -> void:
 	_language.clear()
 	var locales := Array(TranslationServer.get_loaded_locales())
 	locales.sort()
-	var current := str(Settings.get_setting("language", TranslationServer.get_locale()))
-	var best := -1
-	var best_score := 0
 	for locale: String in locales:
 		if _language_index(locale) != -1:
 			continue
-		var translation := TranslationServer.get_translation_object(locale)
-		var label := str(translation.get_message("UI_LANGUAGE_NAME")) if translation != null else ""
+		var label := locale_message(locale, &"UI_LANGUAGE_NAME")
 		_language.add_item(label if not label.is_empty() else TranslationServer.get_locale_name(locale))
 		_language.set_item_metadata(_language.item_count - 1, locale)
-		var score := TranslationServer.compare_locales(current, locale)
-		if score > best_score:
-			best_score = score
-			best = _language.item_count - 1
-	_language.selected = best
+	var resolved := Settings.resolve_language(str(Settings.get_setting("language", TranslationServer.get_locale())))
+	var selected := _language_index(resolved)
+	_language.selected = selected if selected != -1 else (0 if _language.item_count > 0 else -1)
+
+## 같은 로케일에 여러 번역 리소스가 등록되어 있어도 순회하여 메시지를 조회한다.
+static func locale_message(locale: String, key: StringName) -> String:
+	for exact in [true, false]:
+		for translation: Translation in TranslationServer.find_translations(locale, exact):
+			var message := str(translation.get_message(key))
+			if not message.is_empty():
+				return message
+	return ""
 
 func _language_index(locale: String) -> int:
 	for index in _language.item_count:
@@ -230,4 +281,11 @@ func _report(error: Error) -> void:
 		operation_failed.emit(error)
 
 func _exit_tree() -> void:
-	InputManager.cancel_capture()
+	if not _dragging_volume.is_empty() and _volume_sliders.has(_dragging_volume):
+		var key := _dragging_volume
+		var slider: HSlider = _volume_sliders[key]
+		_dragging_volume = ""
+		_commit_volume(key, slider, slider.value)
+	if _owns_capture:
+		_owns_capture = false
+		InputManager.cancel_capture()

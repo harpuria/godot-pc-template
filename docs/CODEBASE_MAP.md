@@ -57,10 +57,11 @@ project.godot
 
 ## 변경 후 검증
 
-저장소 루트에서 Godot **4.7.2**로 공통 회귀 검사를 실행한다. CI(`.github/workflows/validate.yml`)도 같은 스크립트를 Linux에서 실행한다.
+저장소 루트에서 Godot **4.7.2**로 공통 회귀 검사를 실행한다. CI(`.github/workflows/validate.yml`)는 공식 아카이브 체크섬을 확인한 뒤 `xvfb-run`으로 `--gui` 모드까지 실행한다.
 
 ```bash
-tools/validate.sh                         # PATH의 godot 사용
+tools/validate.sh                         # PATH의 godot으로 headless 검사 실행
+tools/validate.sh --gui                   # 창 환경(또는 xvfb-run)에서 GUI 화면 검사까지 추가 실행
 GODOT=/path/to/Godot tools/validate.sh    # 예: macOS /Applications/Godot.app/Contents/MacOS/Godot
 ```
 
@@ -71,11 +72,12 @@ GODOT=/path/to/Godot tools/validate.sh    # 예: macOS /Applications/Godot.app/C
 | import | `--editor --import --quit` | exit 0, 오류 로그 없음 |
 | integration (기본 / `--disabled` / `--native`) | `--scene res://tests/integration.tscn [-- 옵션]` | `INTEGRATION: N checks, 0 failures` |
 | bootstrap-failure (기본 / `--runtime-error`) | `--scene res://tests/bootstrap_failure.tscn [-- --runtime-error]` | `entry_blocked=true message_shown=true` 후 창 닫기 요청으로 종료 |
+| gui-integration (`--gui` 선택 시) | `--audio-driver Dummy --scene res://tests/integration.tscn` (headless 제외) | 창·화면 rollback 검사를 포함한 `INTEGRATION: N checks, 0 failures` |
 
 모든 검사는 exit 0이어야 하고 로그에 `SCRIPT ERROR`·`Parse Error`·`ERROR:`·객체 누수가 없어야 한다(Godot은 스크립트 오류 뒤에도 exit 0일 수 있다). 예외는 실패 주입 검사의 `Game init script failed`와 `deliberate_init_failure` 로그뿐이다. 로그는 `build/validation_logs/`에 남는다.
 
-설정 도구를 바꿨다면 configure를 두 번 실행해 `project.godot`·`export_presets.cfg`가 달라지지 않는지(`git diff`) 확인한다. CI도 이 검사를 한다.
+설정 도구·번역·라이선스 고지를 바꿨다면 `configure.gd`와 `write_engine_notices.gd`, CSV import 후 `project.godot`·`export_presets.cfg`·`ui/i18n/`·`third_party/`가 달라지지 않는지(`git diff`) 확인한다. CI도 이 검사를 한다.
 
-GUI 화면을 바꿨다면 `godot --path . --scene res://tests/integration.tscn -- --capture`로 실제 창과 화면 설정 rollback을 확인한다. 캡처 경로는 로그에 출력된다. 검사는 고유 `/tmp` 저장 경로를 쓰고 캡처 모드가 아니면 정리한다.
+GUI 스크린샷까지 남기려면 `godot --path . --scene res://tests/integration.tscn -- --capture`로 실행한다. 캡처 경로는 로그에 출력된다. 검사는 고유 `/tmp` 저장 경로를 쓰고 캡처 모드가 아니면 정리한다.
 
 공통 회귀 검증은 Windows/macOS/Linux 실행 파일, 서명, 스토어 서버 검증을 대신하지 않는다. 실제 결과와 남은 범위는 [template/VALIDATION.md](template/VALIDATION.md)에 기록한다.

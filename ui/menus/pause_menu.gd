@@ -73,7 +73,8 @@ func is_open() -> bool:
 	return _open
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not handle_pause_action or not InputManager.capturing.is_empty() or App.dialogs.is_open() or WindowManager.previewing:
+	if not handle_pause_action or SceneManager.transitioning or not InputManager.capturing.is_empty() \
+			or App.dialogs.is_open() or WindowManager.previewing:
 		return
 	if event.is_action_pressed("pause") and not event.is_echo():
 		if _open and _settings_scroll.visible:
@@ -110,3 +111,8 @@ func _sync(active: bool) -> void:
 		opened.emit()
 	else:
 		closed.emit()
+
+func _exit_tree() -> void:
+	if _open and is_instance_valid(App) and App.is_inside_tree():
+		_open = false
+		App.set_paused(PAUSE_REASON, false)

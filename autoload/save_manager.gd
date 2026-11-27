@@ -11,14 +11,19 @@ var storage_path: String = "user://saves/slot_1.json"
 var dirty := false
 var write_blocked := false
 var migrations: Dictionary = {}
+var _autosave_timer := Timer.new()
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	var timer := Timer.new()
-	timer.wait_time = maxf(1.0, float(GameConfig.value("save", "autosave_seconds", 30.0)))
-	timer.timeout.connect(flush)
-	add_child(timer)
-	timer.start()
+	_autosave_timer.wait_time = maxf(1.0, float(GameConfig.value("save", "autosave_seconds", 30.0)))
+	_autosave_timer.timeout.connect(flush)
+	add_child(_autosave_timer)
+
+## App 초기화가 완료된 뒤 주기적 자동 저장을 시작한다.
+func start_autosave() -> void:
+	_autosave_timer.wait_time = maxf(1.0, float(GameConfig.value("save", "autosave_seconds", 30.0)))
+	if _autosave_timer.is_stopped():
+		_autosave_timer.start()
 
 ## from_version에서 다음 버전으로 변환하는 Callable(Dictionary)->Dictionary를 등록한다.
 func register_migration(from_version: int, migration: Callable) -> void:
@@ -86,9 +91,12 @@ func load_slot() -> Error:
 		candidate = next
 		version += 1
 	data = candidate
-	# migration 또는 임시 파일 복구 결과는 원본 경로에 다시 기록한다.
-	dirty = migrated or bool(result.get("recovered", false))
 	write_blocked = false
+	# migration 또는 임시 파일 복구 결과는 즉시 원본 경로에 기록한다. 쓰기 실패 시 dirty를 남겨 다음 저장에서 재시도한다.
+	if migrated or bool(result.get("recovered", false)):
+		dirty = save_slot() != OK
+	else:
+		dirty = false
 	loaded.emit()
 	return OK
 

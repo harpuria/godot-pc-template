@@ -31,7 +31,7 @@ Steam 클라이언트나 외부 플러그인은 필요하지 않다.
 | 화면 변경 | 모드·크기·VSync·FPS 선택 → `Preview display settings`(화면 설정 미리보기) | `Keep settings`(유지)로 저장; 15초 안에 확인하지 않으면 복구 |
 | 전체 화면 단축키 | `F11` 또는 `Alt+Enter` | 창 / 테두리 없는 전체 화면을 확인창 없이 바로 전환하고 저장 |
 | 언어 | 설정의 `Language`(언어) 선택 | pause 메뉴·설정·대화상자 문구가 English / 한국어로 바로 바뀐다. 처음 실행은 OS 언어 |
-| 입력 변경 | 오른쪽 Action 선택 → `Rebind primary` / `Rebind secondary` → 키·마우스·게임패드 입력 | 누른 장치 종류의 해당 칸만 교체; `Esc`로 취소 |
+| 입력 변경 | 오른쪽 Action 선택 → `Rebind primary` / `Rebind secondary` / `Clear secondary` | 누른 장치 종류의 해당 칸만 교체·보조 칸 해제; `Esc`로 취소 |
 | 입력 복구 | `Restore default controls` | 기본 바인딩으로 돌아간다 |
 | pause 메뉴 | `Esc`, 게임패드 Start 또는 `Open pause menu` | 게임이 멈추고 계속하기·설정·종료 메뉴가 열린다 |
 | 종료 | `Quit` 또는 창 닫기(X) | 저장 후 종료를 확인한다. 저장 실패 시 머무르기·재시도·저장 없이 종료 선택 |
@@ -101,7 +101,7 @@ Windows는 x86_64 `.exe`와 `.pck`, macOS는 Intel/Apple Silicon 공용 Universa
 | 구성 | 버전 / 상태 |
 | --- | --- |
 | Godot / 내장 GDScript | **4.7.2** 고정, MIT |
-| PC 템플릿 | **0.1.0**, 자체 GDScript |
+| PC 템플릿 | **0.1.0**, 자체 GDScript, [MIT](LICENSE) |
 | 외부 Godot addon / 네이티브 SDK | 없음 |
 | 선택적 스토어 서비스(StoreService) / Adapter / Mock | 저장소 내 구현; Mock은 Debug 전용 |
 | PC export templates | 엔진과 같은 4.7.2를 개발 환경에 설치 |

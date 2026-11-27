@@ -1,10 +1,12 @@
 ## 현재 고정 엔진이 제공하는 Godot·제3자 라이선스 고지를 배포 리소스로 기록한다.
 extends SceneTree
 
+const GAME_CONFIG := preload("res://autoload/game_config.gd")
+
 func _initialize() -> void:
 	var version := Engine.get_version_info()
-	if "%s.%s.%s" % [version.major, version.minor, version.patch] != "4.7.2":
-		push_error("Generate notices with Godot 4.7.2")
+	if "%s.%s.%s" % [version.major, version.minor, version.patch] != GAME_CONFIG.ENGINE_VERSION:
+		push_error("Generate notices with Godot " + GAME_CONFIG.ENGINE_VERSION)
 		quit(1)
 		return
 	var license_file := FileAccess.open("res://third_party/GODOT_LICENSE.txt", FileAccess.WRITE)
@@ -28,5 +30,5 @@ func _initialize() -> void:
 		notices.store_line("")
 	license_file.close()
 	notices.close()
-	print("NOTICES: Godot 4.7.2 license and bundled third-party licenses written")
+	print("NOTICES: Godot %s license and bundled third-party licenses written" % GAME_CONFIG.ENGINE_VERSION)
 	quit(0)

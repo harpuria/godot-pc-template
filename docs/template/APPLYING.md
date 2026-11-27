@@ -72,7 +72,7 @@ tag <tag or none>, commit <git rev-parse HEAD 결과>, applied <YYYY-MM-DD>.
 
 ## 5. 검증
 
-[코드 안내서의 변경 후 검증](../CODEBASE_MAP.md#변경-후-검증)을 실행하고, F5로 게임의 `main_scene`과 init hook 진입을 확인한다. 공통 검사는 데모와 기본 logical ID를 사용하므로, 게임 config를 바꿨다면 그 가정에 맞춘 게임용 검사를 따로 준비한다.
+[코드 안내서의 변경 후 검증](../CODEBASE_MAP.md#변경-후-검증)을 실행하고, F5로 게임의 `main_scene`과 init hook 진입을 확인한다. 공통 검사는 `init_script`의 계약 통과 여부를 확인한 뒤 자체 기준값으로 프레임워크 계약을 검증하므로, 게임 `config/game.cfg`와 `game/game_init.gd`를 바꾼 뒤에도 `scenes/`와 `assets/demo/`를 유지하면 그대로 실행할 수 있다. 게임 고유 규칙·ID 검사는 별도로 추가한다.
 
 Windows/macOS export·서명·실행·스토어 기능의 실제 결과는 게임의 `docs/VALIDATION.md` 등에 기록한다. 템플릿의 검증 결과를 게임의 실행 파일 검증으로 재사용하지 않는다.
 

@@ -2,7 +2,7 @@
 extends SceneTree
 
 const DEFAULT_INPUT := preload("res://core/input/default_input.gd")
-const ENGINE_VERSION := "4.7.2"
+const GAME_CONFIG := preload("res://autoload/game_config.gd")
 # [preset 이름 접두어, Godot platform, 출력 폴더, 실행 파일 확장자]. 순서가 preset 번호를 정한다.
 const PLATFORMS := [
 	["Windows", "Windows Desktop", "windows", "exe"],
@@ -15,8 +15,9 @@ const UI_TRANSLATIONS := ["res://ui/i18n/ui.en.translation", "res://ui/i18n/ui.k
 
 func _initialize() -> void:
 	var actual := Engine.get_version_info()
-	if "%s.%s.%s" % [actual.major, actual.minor, actual.patch] != ENGINE_VERSION:
-		_fail("Use Godot " + ENGINE_VERSION)
+	var pinned := FileAccess.get_file_as_string("res://.godot-version").strip_edges()
+	if pinned != GAME_CONFIG.ENGINE_VERSION or "%s.%s.%s" % [actual.major, actual.minor, actual.patch] != GAME_CONFIG.ENGINE_VERSION:
+		_fail("Use Godot " + GAME_CONFIG.ENGINE_VERSION + " and keep .godot-version aligned")
 		return
 	var config := ConfigFile.new()
 	if config.load("res://config/game.cfg") != OK:
@@ -66,11 +67,18 @@ func _initialize() -> void:
 	for pair in [["viewport_width", width], ["viewport_height", height], ["window_width_override", window_width],
 		["window_height_override", window_height], ["min_width", min_width], ["min_height", min_height]]:
 		ProjectSettings.set_setting("display/window/size/" + pair[0], pair[1])
+	var deadzone := clampf(float(config.get_value("input", "controller_deadzone", 0.2)), 0.05, 0.95)
 	var inputs: Dictionary = DEFAULT_INPUT.actions()
 	for action in inputs:
 		var key := "input/" + str(action)
 		if not ProjectSettings.has_setting(key):
-			ProjectSettings.set_setting(key, {"deadzone": float(config.get_value("input", "controller_deadzone", 0.2)), "events": inputs[action]})
+			ProjectSettings.set_setting(key, {"deadzone": deadzone, "events": inputs[action]})
+		else:
+			var current: Dictionary = ProjectSettings.get_setting(key)
+			if not is_equal_approx(float(current.get("deadzone", 0.2)), deadzone):
+				var updated := current.duplicate()
+				updated["deadzone"] = deadzone
+				ProjectSettings.set_setting(key, updated)
 	var translations := PackedStringArray(ProjectSettings.get_setting("internationalization/locale/translations", PackedStringArray()))
 	for path: String in UI_TRANSLATIONS:
 		if not path in translations:
@@ -148,7 +156,13 @@ func _set_default(file: ConfigFile, section: String, key: String, value: Variant
 		file.set_value(section, key, value)
 
 func _append_filter(base: String, extra: String) -> String:
-	return base + "," + extra if not extra.strip_edges().is_empty() else base
+	var parts := PackedStringArray()
+	for source in [base, extra]:
+		for token in str(source).split(",", false):
+			var trimmed := token.strip_edges()
+			if not trimmed.is_empty() and not trimmed in parts:
+				parts.append(trimmed)
+	return ",".join(parts)
 
 func _safe_relative_directory(value: String) -> bool:
 	if value.is_empty() or value.is_absolute_path() or value.contains("\\") or value.contains(":"):

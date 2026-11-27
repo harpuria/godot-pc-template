@@ -8,7 +8,7 @@
 | --- | --- | --- | --- |
 | Godot Engine Standard | `4.7.2.stable.official.ed1daf0bf`; [고정 release](https://godotengine.org/download/archive/4.7.2-stable/), [엔진 source](https://github.com/godotengine/godot/tree/4.7.2-stable) | MIT + 내장 제3자 고지 | 로컬 macOS import·실행 확인 |
 | GDScript | Godot 4.7.2 내장 | Godot license | 추가 설치 없음 |
-| PC 공통 관리자·StoreService·Mock | 이 저장소 0.1.0 | 템플릿 자체의 외부 배포 license는 별도 결정 | In-repo |
+| PC 공통 관리자·StoreService·Mock | 이 저장소 0.1.0 | [MIT](../LICENSE) | In-repo |
 | 데모 WAV | 모바일 템플릿의 자체 생성 사인파 | 외부 자산 library 없음 | 로컬 asset |
 | PC SVG 아이콘 | 이 템플릿에서 직접 작성 | 외부 자산 library 없음 | 로컬 asset |
 | Windows/macOS/Linux export templates | 엔진과 일치하는 4.7.2; [공식 archive](https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz) | Godot 및 포함된 제3자 license | 로컬 macOS 환경에 Windows x86_64 Debug/Release·macOS 설치; Linux x86_64 Debug/Release는 Linux 검증 환경에 설치 |
@@ -16,7 +16,7 @@
 
 최신 버전 점검(2026-11-04): 공식 build 저장소 기준 최신 stable은 **4.7.2**이며 4.7.3은 없다. 4.8은 `4.8-beta2`까지 공개된 개발 버전이라 채택하지 않는다. CI의 GitHub Actions는 Node 24 런타임의 `checkout@v5`, `cache@v5`, `upload-artifact@v6`을 사용한다.
 
-Godot 버전의 세 출처는 `.godot-version`, `GameConfig.ENGINE_VERSION`, 설정 도구의 버전 guard이며 모두 4.7.2다. 엔진을 바꾸려면 모바일 프로젝트와 기준을 함께 결정하고 코드·export·문서의 일치 여부를 확인한다.
+Godot 버전의 기준 출처는 `.godot-version`과 `GameConfig.ENGINE_VERSION` 두 곳이며 모두 4.7.2다(`tools/configure.gd`와 `tools/write_engine_notices.gd`는 `GameConfig.ENGINE_VERSION`을 참조하고 `.godot-version` 일치를 검사한다). 엔진을 바꾸려면 모바일 프로젝트와 기준을 함께 결정하고 코드·export·문서의 일치 여부를 확인한다.
 
 ## 모바일 템플릿과의 관계
 

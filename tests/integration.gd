@@ -24,26 +24,55 @@ func _ready() -> void:
 	SaveManager.storage_path = _directory + "/saves/slot_1.json"
 	Settings.storage_path = _directory + "/settings.cfg"
 	InputManager.storage_path = _directory + "/input.cfg"
-	# GUI에서 테스트할 때도 사용자 설정을 쓰지 않는다.
+	_run.call_deferred()
+
+func _reset_framework_baseline(args: PackedStringArray) -> void:
+	# 로컬 사용자 파일이나 파생 게임의 config/init_script 변경이 공통 프레임워크 회귀 검사를 깨지 않도록 기준 상태를 맞춘다.
+	GameConfig.config.set_value("features", "store_enabled", not ("--disabled" in args))
+	GameConfig.config.set_value("distribution", "channel", "auto")
+	GameConfig.config.set_value("services", "mode", "native" if "--native" in args else "mock")
+	GameConfig.config.set_value("store", "achievement_ids", {"DEMO_FIRST_WIN": "DEMO_FIRST_WIN"})
+	GameConfig.config.set_value("store", "leaderboard_ids", {"DEMO_SCORE": "DEMO_SCORE"})
 	Settings.values = Settings.defaults()
 	Settings.write_blocked = false
+	SaveManager.schema_version = 1
+	SaveManager.migrations.clear()
+	SaveManager.data = {}
+	SaveManager.dirty = false
+	SaveManager.write_blocked = false
+	App._registered_store_adapter = null
+	InputManager.cancel_capture()
+	for action in InputManager.actions():
+		if not action in InputManager.COMMON_ACTIONS:
+			InputMap.erase_action(action)
+			InputManager._actions.erase(action)
+			InputManager._defaults.erase(action)
+	for action in InputManager.COMMON_ACTIONS:
+		InputManager._apply_events(action, InputManager._defaults[action])
+	InputManager._stored.clear()
 	InputManager.write_blocked = false
-	_run.call_deferred()
 
 func _run() -> void:
 	var args := OS.get_cmdline_user_args()
-	if "--disabled" in args:
-		GameConfig.config.set_value("features", "store_enabled", false)
-	if "--native" in args:
-		GameConfig.config.set_value("services", "mode", "native")
+	var configured_init := str(GameConfig.value("app", "init_script", ""))
+	_check(preload("res://scenes/bootstrap.gd").run_init_script(configured_init) == OK, "Game init skeleton is wired and valid")
+	# 파생 게임이 config와 init hook을 수정한 상태에서도 기준 복원이 동작하는지 검사한다.
+	GameConfig.config.set_value("features", "store_enabled", false)
+	GameConfig.config.set_value("store", "achievement_ids", {"DERIVED_ONLY": "ACH_1"})
+	SaveManager.schema_version = 3
+	SaveManager.register_migration(1, func(old: Dictionary) -> Dictionary: return old)
+	InputManager.register_action(&"derived_temp", [DefaultInput.key(KEY_Z)])
+	_reset_framework_baseline(args)
+	_check(SaveManager.schema_version == 1 and SaveManager.migrations.is_empty() \
+		and not (&"derived_temp" in InputManager.actions()), "Derived game hook state isolated from framework baseline")
 	_init_checks()
 	_check(preload("res://scenes/bootstrap.gd").run_init_script("res://tests/fixtures/game_init_fixture.gd") == OK, "Valid init hook accepted")
 	_check(SaveManager.get_meta("hook_before_app", false) and SaveManager.get_meta("init_hook_count", 0) == 1, "Hook runs once before App")
 	_check(SaveManager.schema_version == 2 and SaveManager.migrations.has(1), "Hook registers game schema and migration")
-	SaveManager.schema_version = 1
-	SaveManager.migrations.clear()
+	_reset_framework_baseline(args)
+	_check(SaveManager._autosave_timer.is_stopped(), "Autosave timer stays stopped before App initialization")
 	App.initialize()
-	_check(App.ready_for_game, "App initialized")
+	_check(App.ready_for_game and not SaveManager._autosave_timer.is_stopped(), "App initialized and autosave started")
 	var store_instance := App.store
 	App.initialize()
 	_check(App.store == store_instance, "Repeated initialization preserves service")
@@ -62,8 +91,6 @@ func _run() -> void:
 	_check(App.store.unlock_achievement("UNKNOWN") == ERR_INVALID_PARAMETER, "Logical ID validation")
 	_check(App.store.open_overlay("invalid") == ERR_INVALID_PARAMETER, "Overlay page validation")
 	_check(preload("res://scenes/bootstrap.gd").run_init_script("") == OK, "Empty init hook allowed")
-	_check(GameConfig.value("app", "init_script") == "res://game/game_init.gd" \
-		and preload("res://scenes/bootstrap.gd").run_init_script("res://game/game_init.gd") == OK, "Game init skeleton is wired and valid")
 	_check(ResourceLoader.exists("res://default_bus_layout.tres") and AudioServer.get_bus_index("BGM") == 1 \
 		and AudioServer.get_bus_index("SFX") == 2 and AudioServer.get_bus_index("UI") == 3, "Editor-visible bus layout provides BGM/SFX/UI")
 	_check(load(str(ProjectSettings.get_setting("gui/theme/custom", ""))) is Theme, "Project default theme loads")
@@ -97,8 +124,20 @@ func _run() -> void:
 	_check(App.store == store_instance and SaveManager.data.get("recovered") == true, "Managers persist across scenes")
 	_check(SceneManager.change_scene("res://game/main.tscn") == OK, "Game skeleton scene accepted")
 	await SceneManager.transition_completed
-	_check(get_tree().current_scene.scene_file_path == "res://game/main.tscn" \
-		and get_tree().current_scene.get_children().any(func(child: Node): return child is PauseMenu), "Game skeleton enters with pause menu")
+	var scene_menus := get_tree().current_scene.get_children().filter(func(child: Node): return child is PauseMenu)
+	_check(get_tree().current_scene.scene_file_path == "res://game/main.tscn" and not scene_menus.is_empty(), "Game skeleton enters with pause menu")
+	if not scene_menus.is_empty():
+		var game_menu := scene_menus[0] as PauseMenu
+		game_menu.open()
+		_check(get_tree().paused and App.has_pause_reason("menu"), "Scene pause menu pauses before transition")
+		_check(SceneManager.change_scene("res://scenes/transition_demo.tscn") == OK, "Transition while pause menu is open accepted")
+		var pause_action := InputEventAction.new()
+		pause_action.action = &"pause"
+		pause_action.pressed = true
+		game_menu._unhandled_input(pause_action)
+		_check(game_menu.is_open(), "Pause shortcut ignored while scene transition is in progress")
+		await SceneManager.transition_completed
+		_check(not get_tree().paused and not App.has_pause_reason("menu") and not AudioManager._suspended, "Leaving scene with open pause menu releases menu pause and audio")
 	await get_tree().process_frame
 	AudioManager.stop_bgm()
 	await _wait_for_audio_cleanup()
@@ -127,7 +166,7 @@ func _save_checks() -> void:
 		old["migrated"] = true
 		return old)
 	_check(SaveManager.load_slot() == OK and SaveManager.data.migrated, "Schema migration applied")
-	_check(SaveManager.dirty and SaveManager.flush() == OK, "Migrated save persisted")
+	_check(not SaveManager.dirty and JsonStore.read(SaveManager.storage_path).document.get("version") == 2, "Migrated save persisted immediately on load")
 	_write(SaveManager.storage_path, "{broken json")
 	var previous := SaveManager.data.duplicate(true)
 	_check(SaveManager.load_slot() == ERR_PARSE_ERROR and SaveManager.write_blocked, "Corrupt save blocks writes")
@@ -145,9 +184,8 @@ func _save_checks() -> void:
 	# Windows의 rename은 원본 삭제 후 이동한다. 그 사이 중단되면 완성된 .tmp만 남는다.
 	DirAccess.rename_absolute(SaveManager.storage_path, SaveManager.storage_path + ".tmp")
 	SaveManager.data = {}
-	_check(SaveManager.load_slot() == OK and SaveManager.data.get("recovered") == true and SaveManager.dirty, "Interrupted replace restores completed temp save")
-	_check(SaveManager.flush() == OK and FileAccess.file_exists(SaveManager.storage_path) \
-		and not FileAccess.file_exists(SaveManager.storage_path + ".tmp"), "Restored save rewritten to original path")
+	_check(SaveManager.load_slot() == OK and SaveManager.data.get("recovered") == true and not SaveManager.dirty, "Interrupted replace restores completed temp save")
+	_check(FileAccess.file_exists(SaveManager.storage_path) and not FileAccess.file_exists(SaveManager.storage_path + ".tmp"), "Restored save promoted to original path immediately")
 	var original_path := SaveManager.storage_path
 	SaveManager.storage_path = _directory + "/saves/first_write.json"
 	_write(SaveManager.storage_path + ".tmp", "{partial")
@@ -182,30 +220,104 @@ func _settings_checks() -> void:
 		_check(Settings.reset_to_defaults() == OK, "Explicit recovery after invalid setting value")
 	Settings.changed.disconnect(listener)
 	_check(Settings.set_setting("subtitles_enabled", true) == OK and Settings.load_settings() == OK and Settings.get_setting("subtitles_enabled"), "Game-specific settings remain supported")
-	_check(Settings.defaults().language == OS.get_locale_language(), "New users start with the OS language")
+	_check(Settings.defaults().language == Settings.resolve_language(OS.get_locale()), "New users start with the resolved OS or fallback language")
 	DirAccess.rename_absolute(Settings.storage_path, Settings.storage_path + ".tmp")
 	Settings.values.subtitles_enabled = false
 	_check(Settings.load_settings() == OK and Settings.get_setting("subtitles_enabled") == true and not Settings.write_blocked, "Interrupted settings replace restores completed temp")
-	_check(Settings.save_settings() == OK and FileAccess.file_exists(Settings.storage_path), "Restored settings rewritten to original path")
+	_check(FileAccess.file_exists(Settings.storage_path) and not FileAccess.file_exists(Settings.storage_path + ".tmp"), "Restored settings promoted to original path immediately")
+	var original_settings_path := Settings.storage_path
+	Settings.storage_path = _directory + "/empty_first_settings.cfg"
+	_write(Settings.storage_path + ".tmp", "")
+	_check(Settings.load_settings() == OK and not Settings.write_blocked, "Empty first-write settings temp starts fresh without blocking writes")
+	_write(Settings.storage_path + ".tmp", "[settings]\nwindow_size=\"broken\"\n")
+	_check(Settings.load_settings() == OK and not Settings.write_blocked, "Incomplete first-write settings temp starts fresh without blocking writes")
+	Settings.storage_path = original_settings_path
+	_check(Settings.load_settings() == OK, "Original settings path restored")
+	var panel_a := SettingsPanel.new()
+	var panel_b := SettingsPanel.new()
+	add_child(panel_a)
+	add_child(panel_b)
+	Settings.set_setting("window_size", Vector2i(1366, 768))
+	Settings.set_setting("window_size", Vector2i(1440, 900))
+	_check(panel_a._resolution.item_count == SettingsPanel.SIZES.size() + 1 \
+		and panel_a._resolution.get_item_metadata(SettingsPanel.SIZES.size()) == Vector2i(1440, 900), "Custom window sizes replace single custom item instead of accumulating")
+	Settings.set_setting("window_size", Vector2i(1280, 720))
+	_check(panel_a._resolution.item_count == SettingsPanel.SIZES.size(), "Standard window size removes stale custom item")
+	Settings.set_setting("max_fps", 75)
+	Settings.set_setting("max_fps", 90)
+	_check(panel_a._fps.item_count == SettingsPanel.FPS_LIMITS.size() + 1, "Custom FPS limits replace single custom item")
+	Settings.set_setting("max_fps", 0)
+	_check(panel_a._fps.item_count == SettingsPanel.FPS_LIMITS.size(), "Standard FPS limit removes stale custom item")
+	Settings.set_setting("bgm_volume", 0.35)
+	_check(is_equal_approx(panel_a._volume_sliders["bgm_volume"].value, 0.35) \
+		and is_equal_approx(panel_b._volume_sliders["bgm_volume"].value, 0.35), "External setting updates synchronize all settings panels")
+	var sfx_commits: Array[float] = []
+	var sfx_listener := func(changed_key: String, value: Variant):
+		if changed_key == "sfx_volume":
+			sfx_commits.append(float(value))
+	Settings.changed.connect(sfx_listener)
+	var sfx_slider: HSlider = panel_a._volume_sliders["sfx_volume"]
+	sfx_slider.drag_started.emit()
+	sfx_slider.value = 0.25
+	sfx_slider.value = 0.5
+	var sfx_bus := AudioServer.get_bus_index("SFX")
+	_check(sfx_commits.is_empty() and absf(db_to_linear(AudioServer.get_bus_volume_db(sfx_bus)) - 0.5) < 0.001, "Slider drag previews bus volume without intermediate disk writes")
+	sfx_slider.drag_ended.emit(true)
+	_check(sfx_commits.size() == 1 and is_equal_approx(sfx_commits[0], 0.5) \
+		and is_equal_approx(float(Settings.get_setting("sfx_volume")), 0.5), "Slider drag_ended commits final volume once")
+	Settings.changed.disconnect(sfx_listener)
+	var errors_a: Array[int] = []
+	var errors_b: Array[int] = []
+	panel_a.operation_failed.connect(func(err: int): errors_a.append(err))
+	panel_b.operation_failed.connect(func(err: int): errors_b.append(err))
+	panel_a._start_capture(0)
+	panel_b.free()
+	_check(not InputManager.capturing.is_empty(), "Freeing non-owning settings panel keeps active capture alive")
+	var panel_c := SettingsPanel.new()
+	add_child(panel_c)
+	panel_c.operation_failed.connect(func(err: int): errors_b.append(err))
+	var conflict_key := InputEventKey.new()
+	conflict_key.physical_keycode = KEY_A
+	conflict_key.pressed = true
+	InputManager._input(conflict_key)
+	_check(errors_a == [ERR_ALREADY_IN_USE] and errors_b.is_empty(), "Only the capture-owning settings panel reports capture failure")
+	panel_a.free()
+	panel_c.free()
 
 func _translation_checks() -> void:
 	var registered := PackedStringArray(ProjectSettings.get_setting("internationalization/locale/translations", PackedStringArray()))
 	_check("res://ui/i18n/ui.en.translation" in registered and "res://ui/i18n/ui.ko.translation" in registered, "Common UI translations registered")
 	# 공통 UI 코드에서 쓰는 모든 번역 키가 영어·한국어에 있는지 확인한다.
-	var english := TranslationServer.get_translation_object("en")
-	var korean := TranslationServer.get_translation_object("ko")
 	var missing := PackedStringArray()
 	var pattern := RegEx.create_from_string("\"(UI_[A-Z0-9_]*[A-Z0-9])\"")
 	for path in ["res://ui/menus/pause_menu.gd", "res://ui/dialogs/quit_dialogs.gd", "res://ui/settings/settings_panel.gd",
 			"res://ui/loading/loading.tscn", "res://autoload/window_manager.gd", "res://autoload/input_manager.gd", "res://scenes/bootstrap.gd"]:
 		for found in pattern.search_all(FileAccess.get_file_as_string(path)):
 			var key := found.get_string(1)
-			if english == null or korean == null or str(english.get_message(key)).is_empty() or str(korean.get_message(key)).is_empty():
+			if SettingsPanel.locale_message("en", StringName(key)).is_empty() or SettingsPanel.locale_message("ko", StringName(key)).is_empty():
 				missing.append(key)
 	for action in InputManager.COMMON_ACTIONS:
-		if korean == null or str(korean.get_message("UI_ACTION_" + str(action).to_upper())).is_empty():
-			missing.append("UI_ACTION_" + str(action).to_upper())
+		var action_key := "UI_ACTION_" + str(action).to_upper()
+		if SettingsPanel.locale_message("en", StringName(action_key)).is_empty() or SettingsPanel.locale_message("ko", StringName(action_key)).is_empty():
+			missing.append(action_key)
 	_check(missing.is_empty(), "Every common UI key has English and Korean text: " + ", ".join(missing))
+	var extra_ko := Translation.new()
+	extra_ko.locale = "ko"
+	extra_ko.add_message(&"GAME_ONLY_KEY", &"게임 문구")
+	TranslationServer.add_translation(extra_ko)
+	_check(SettingsPanel.locale_message("ko", &"UI_LANGUAGE_NAME") == "한국어" \
+		and SettingsPanel.locale_message("ko", &"GAME_ONLY_KEY") == "게임 문구", "Multiple translations per locale resolve messages across files")
+	TranslationServer.remove_translation(extra_ko)
+	var zh_cn := Translation.new()
+	zh_cn.locale = "zh_CN"
+	var zh_tw := Translation.new()
+	zh_tw.locale = "zh_TW"
+	TranslationServer.add_translation(zh_cn)
+	TranslationServer.add_translation(zh_tw)
+	_check(Settings.resolve_language("zh_TW") == "zh_TW" and Settings.resolve_language("zh_CN") == "zh_CN", "Regional locales distinguish scripts instead of truncating to language code")
+	TranslationServer.remove_translation(zh_cn)
+	TranslationServer.remove_translation(zh_tw)
+	_check(Settings.resolve_language("ja_JP") == "en", "Unsupported OS locale falls back to project default language")
 	var previous := str(Settings.get_setting("language"))
 	_check(Settings.set_setting("language", "ko") == OK and tr("UI_RESUME") == "계속하기", "Korean common UI text applies")
 	_check(InputManager.action_text(&"move_left") == "왼쪽 이동" and InputManager.action_text(&"custom_jump") == "Custom Jump", "Action names translate with readable fallback")
@@ -216,6 +328,8 @@ func _translation_checks() -> void:
 	_check(panel._language.item_count >= 2 and english_index != -1 and panel._language.get_item_text(panel._language_index("ko")) == "한국어", "Language picker lists native names")
 	panel._language.item_selected.emit(english_index)
 	_check(Settings.get_setting("language") == "en" and tr("UI_RESUME") == "Resume" and panel._binding_label.text.contains("Keyboard"), "Language picker switches UI text immediately")
+	Settings.set_setting("language", "ja")
+	_check(panel._language.selected == english_index, "Unsupported configured language selects fallback in picker instead of -1")
 	panel.free()
 	Settings.set_setting("language", previous)
 
@@ -272,9 +386,18 @@ func _input_checks() -> void:
 	_check(InputManager.save_bindings() == OK and FileAccess.get_file_as_string(InputManager.storage_path).contains("test_later"), "Unregistered bindings preserved on save")
 	# Windows 교체 중단: 원본이 지워지고 완성된 .tmp만 남은 상태를 복구한다.
 	DirAccess.rename_absolute(InputManager.storage_path, InputManager.storage_path + ".tmp")
-	_check(InputManager.load_bindings() == OK and not InputManager.write_blocked, "Interrupted bindings replace restores completed temp")
+	_check(InputManager.load_bindings() == OK and not InputManager.write_blocked \
+		and FileAccess.file_exists(InputManager.storage_path) and not FileAccess.file_exists(InputManager.storage_path + ".tmp"), "Interrupted bindings replace restores and promotes completed temp")
 	_check(InputManager.register_action(&"test_later", [DefaultInput.key(KEY_P)]) == OK \
 		and InputManager.slot_events(&"test_later", "keyboard_mouse")[0].physical_keycode == KEY_O, "Saved binding applied when action registers")
+	var original_input_path := InputManager.storage_path
+	InputManager.storage_path = _directory + "/empty_first_input.cfg"
+	_write(InputManager.storage_path + ".tmp", "")
+	_check(InputManager.load_bindings() == OK and not InputManager.write_blocked, "Empty first-write bindings temp starts fresh without blocking writes")
+	_write(InputManager.storage_path + ".tmp", "[bindings]\nprimary_action=[{\"type\":\"unknown\"}]\n")
+	_check(InputManager.load_bindings() == OK and not InputManager.write_blocked, "Incomplete first-write bindings temp starts fresh without blocking writes")
+	InputManager.storage_path = original_input_path
+	_check(InputManager.load_bindings() == OK, "Original bindings path restored")
 	var load_errors: Array[int] = []
 	var load_listener := func(error: int): load_errors.append(error)
 	InputManager.load_failed.connect(load_listener)
@@ -312,12 +435,55 @@ func _input_checks() -> void:
 		_check(InputManager.capturing.is_empty() and InputMap.event_is_action(combo, &"primary_action", true), "Combination captured with modifier intact")
 		_check(InputManager.load_bindings() == OK and InputMap.event_is_action(combo, &"primary_action", true), "Modifier combination survives reload")
 	InputManager.start_capture(&"primary_action")
+	var out_mouse := InputEventMouseButton.new()
+	out_mouse.button_index = 10 as MouseButton
+	out_mouse.pressed = true
+	InputManager._input(out_mouse)
+	_check(InputManager.encode_event(out_mouse).is_empty() and InputManager.capturing == &"primary_action", "Unsupported mouse button ignored during capture")
 	var escape := InputEventKey.new()
 	escape.physical_keycode = KEY_ESCAPE
 	escape.pressed = true
 	InputManager._input(escape)
 	_check(InputManager.capturing.is_empty(), "Escape still cancels capture")
+	var mixed_key := InputEventKey.new()
+	mixed_key.physical_keycode = KEY_Q
+	mixed_key.keycode = KEY_M
+	_check(InputManager.rebind(&"primary_action", mixed_key) == OK and InputManager.load_bindings() == OK, "OS key with both physical and keycode saved")
+	var reloaded_key := InputManager.slot_events(&"primary_action", "keyboard_mouse")[0] as InputEventKey
+	_check(reloaded_key.physical_keycode == KEY_Q and reloaded_key.keycode == 0, "Physical key binding clears logical keycode for consistent matching")
+	var legacy_decoded := InputManager.decode_event({"type": "key", "physical": KEY_Q, "key": KEY_M}) as InputEventKey
+	_check(legacy_decoded != null and legacy_decoded.physical_keycode == KEY_Q and legacy_decoded.keycode == 0, "Legacy dual-keycode config normalizes to physical key")
+	var logical_only := InputEventKey.new()
+	logical_only.keycode = KEY_Z
+	var logical_decoded := InputManager.decode_event(InputManager.encode_event(logical_only)) as InputEventKey
+	_check(logical_decoded != null and logical_decoded.physical_keycode == 0 and logical_decoded.keycode == KEY_Z \
+		and InputManager.event_text(logical_decoded) == "Z", "Logical-only key fallback preserved")
+	InputManager.start_capture(&"pause", 1)
+	InputManager._input(escape)
+	_check(InputManager.capturing.is_empty() and InputManager.slot_events(&"pause", "keyboard_mouse").size() == 1, "Escape cancels secondary pause capture when primary already uses Escape")
+	_check(InputManager.rebind(&"pause", DefaultInput.key(KEY_L), 0) == OK, "Pause rebound away from Escape")
+	InputManager.start_capture(&"pause", 0)
+	InputManager._input(escape)
+	_check(InputManager.capturing.is_empty() and InputManager.slot_events(&"pause", "keyboard_mouse")[0].physical_keycode == KEY_ESCAPE, "Pause can be rebound back to Escape through capture")
+	var shift_escape := InputEventKey.new()
+	shift_escape.physical_keycode = KEY_ESCAPE
+	shift_escape.shift_pressed = true
+	_check(InputManager.rebind(&"pause", shift_escape, 0) == ERR_INVALID_PARAMETER, "Modified Escape rejected even for pause")
 	_check(InputManager.reset_bindings() == OK, "Controls restored after combination capture")
+	_check(FileAccess.get_file_as_string("res://.godot-version").strip_edges() == GameConfig.ENGINE_VERSION, "Pinned .godot-version matches GameConfig.ENGINE_VERSION")
+	var clear_panel := SettingsPanel.new()
+	add_child(clear_panel)
+	clear_panel._action.select(clear_panel._action_index(&"move_left"))
+	clear_panel._refresh_binding()
+	_check(not clear_panel._clear_secondary.disabled, "Clear secondary button enabled when secondary binding exists")
+	_check(InputManager.clear_slot(&"move_left", "keyboard_mouse", 1) == OK \
+		and InputManager.slot_events(&"move_left", "keyboard_mouse").size() == 1, "Secondary slot cleared cleanly")
+	_check(clear_panel._clear_secondary.disabled, "Clear secondary button disables after secondary slot is cleared")
+	_check(InputManager.rebind(&"primary_action", DefaultInput.key(KEY_LEFT), 0) == OK, "Freed secondary key can be rebound to another action")
+	_check(InputManager.clear_slot(&"pause", "keyboard_mouse", 0) == ERR_INVALID_PARAMETER, "Last keyboard pause binding cannot be cleared")
+	_check(InputManager.clear_slot(&"test_later", "keyboard_mouse", 0) == ERR_INVALID_PARAMETER, "Last remaining binding on an action cannot be cleared")
+	clear_panel.free()
+	_check(InputManager.reset_bindings() == OK, "Controls restored after slot clear checks")
 
 func _pause_checks() -> void:
 	App.set_paused("menu", true)
@@ -377,18 +543,34 @@ func _quit_checks() -> void:
 	_check(not menu.is_open() and not get_tree().paused, "Pause action closes the menu")
 	menu.queue_free()
 	await get_tree().process_frame
+	InputManager.start_capture(&"primary_action")
+	App._notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
+	_check(InputManager.capturing.is_empty(), "Focus loss cancels pending input capture")
+	App._notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	InputManager.start_capture(&"primary_action")
+	App.dialogs.confirm_quit()
+	_check(InputManager.capturing.is_empty() and App.dialogs.is_open(), "Opening quit dialog cancels pending input capture")
+	App.dialogs._confirm.canceled.emit()
+	_check(not App.dialogs.is_open() and not App.has_pause_reason("quit_dialog") and not get_tree().paused, "Canceling quit confirmation immediately clears dialog and pause")
 	# 게임 UI가 종료 신호를 처리하지 않아도 저장 실패 시 창 닫기가 막히지 않아야 한다.
 	_check(App.quit_requested.get_connections().is_empty() and App.quit_failed.get_connections().is_empty(), "No game quit handlers before fallback check")
 	SaveManager.write_blocked = true
 	SaveManager.set_value("quit_probe", 1)
 	App.notification(NOTIFICATION_WM_CLOSE_REQUEST)
 	_check(App.dialogs.is_open() and App.has_pause_reason("quit_dialog") and get_tree().paused, "Unhandled close with failed save shows fallback dialog")
+	App.dialogs.confirm_quit()
+	_check(not App.dialogs._confirm.visible and App.dialogs._failure.visible and App.has_pause_reason("quit_dialog"), "Repeated quit request while save-failure dialog is open does not overlap confirm dialog")
 	App.dialogs._failure.get_ok_button().pressed.emit()
 	_check(not App.dialogs.is_open() and not App.has_pause_reason("quit_dialog") and not get_tree().paused, "Staying after save failure resumes the game")
 	var reported: Array[int] = []
 	var failure_listener := func(error: int): reported.append(error)
 	App.quit_failed.connect(failure_listener)
 	_check(App.request_quit() == ERR_UNAUTHORIZED and reported == [ERR_UNAUTHORIZED] and not App.dialogs.is_open(), "Game quit_failed handler replaces fallback dialog")
+	reported.clear()
+	App.dialogs.show_save_failure(ERR_UNAUTHORIZED)
+	App.dialogs._failure.custom_action.emit(&"retry")
+	_check(reported == [ERR_UNAUTHORIZED] and not App.dialogs.is_open() and not App.has_pause_reason("quit_dialog") \
+		and not get_tree().paused, "Retry failure with custom quit_failed handler releases quit_dialog pause")
 	App.quit_failed.disconnect(failure_listener)
 	SaveManager.write_blocked = false
 	SaveManager.data.erase("quit_probe")
@@ -401,6 +583,12 @@ func _service_checks() -> void:
 	disabled.initialize("steam", false, probe, {}, {})
 	_check(probe.initialized_count == 0, "Disabled service skips SDK initialization")
 	disabled.queue_free()
+	var itch_service := StoreService.new()
+	var itch_probe := ProbeAdapter.new()
+	add_child(itch_service)
+	itch_service.initialize("itch", true, itch_probe, {"WIN": "ITCH_WIN"}, {})
+	_check(itch_service.available and itch_probe.initialized_count == 1, "Verified native adapter can initialize on non-Steam channels")
+	itch_service.queue_free()
 	var service := StoreService.new()
 	var delayed := ProbeAdapter.new()
 	add_child(service)
@@ -408,23 +596,33 @@ func _service_checks() -> void:
 	service.request_succeeded.connect(func(_op: String, _id: String, _result: Dictionary): _successes += 1)
 	service.request_failed.connect(func(_op: String, _id: String, _error: int, _message: String): _store_failures += 1)
 	_check(service.unlock_achievement("WIN") == OK, "Adapter request accepted")
-	_check(service.submit_score("SCORE", 7) == ERR_BUSY, "Concurrent request rejected")
+	_check(service.submit_score("SCORE", 7) == OK, "Burst request queued instead of dropped")
 	await get_tree().process_frame
+	_check(delayed.requests.size() == 1, "Adapter receives one serialized request at a time")
 	var first_id: int = delayed.requests[-1]
 	delayed.completed.emit(first_id, {"error": OK})
 	_check(_successes == 1, "Matching callback completes")
 	delayed.completed.emit(first_id, {"error": OK})
 	_check(_successes == 1, "Duplicate callback ignored")
-	_check(service.submit_score("SCORE", 8) == OK, "Next request accepted")
+	await get_tree().process_frame
+	_check(delayed.requests.size() == 2, "Queued second request dispatched automatically after first completes")
+	var second_id: int = delayed.requests[-1]
+	delayed.completed.emit(second_id, {"error": OK})
+	_check(_successes == 2, "Queued second request completes")
+	_check(service.submit_score("SCORE", 8) == OK, "Timeout test request accepted")
 	await get_tree().create_timer(1.15, true).timeout
-	_check(_store_failures == 2, "Timeout delivered after busy failure")
+	_check(_store_failures == 1, "Timeout delivered as request_failed")
 	var timed_out: int = delayed.requests[-1]
 	_check(service.unlock_achievement("WIN") == OK, "Request after timeout accepted")
 	await get_tree().process_frame
 	delayed.completed.emit(timed_out, {"error": OK})
-	_check(_successes == 1, "Late callback cannot complete newer request")
+	_check(_successes == 2, "Late callback cannot complete newer request")
 	delayed.completed.emit(delayed.requests[-1], {"error": OK})
-	_check(_successes == 2, "New callback completes newer request")
+	_check(_successes == 3, "New callback completes newer request")
+	_check(service.unlock_achievement("WIN") == OK, "Queue head accepted before saturation check")
+	for i in StoreService.MAX_QUEUE_SIZE:
+		service.unlock_achievement("WIN")
+	_check(service.unlock_achievement("WIN") == ERR_BUSY and _store_failures == 2, "Overflowing bounded request queue reports ERR_BUSY")
 	service.queue_free()
 
 func _display_checks() -> void:
@@ -448,6 +646,17 @@ func _display_checks() -> void:
 	Settings.write_blocked = true
 	_check(WindowManager.toggle_fullscreen() == ERR_UNAUTHORIZED and Settings.get_setting("window_mode") == "windowed", "Failed fullscreen save keeps current mode")
 	Settings.write_blocked = false
+	Settings.set_many({"window_mode": "windowed", "window_size": Vector2i(3840, 2160)})
+	WindowManager.apply_saved_options()
+	await get_tree().create_timer(0.6, true).timeout
+	_check(Settings.get_setting("window_size") == Vector2i(3840, 2160), "Usable-rect clamping does not overwrite saved window_size")
+	Settings.set_many(previous)
+	WindowManager.apply_saved_options()
+	DisplayServer.window_set_position(Vector2i(40, 40))
+	await get_tree().process_frame
+	var placed := DisplayServer.window_get_position()
+	_check(WindowManager.preview_options({"max_fps": 120}) == OK and WindowManager.confirm_preview() == OK \
+		and DisplayServer.window_get_position() == placed, "FPS-only display update preserves window position")
 	Settings.set_many(previous)
 	WindowManager.apply_saved_options()
 	var panel := SettingsPanel.new()
@@ -470,18 +679,24 @@ func _display_checks() -> void:
 	panel.queue_free()
 
 func _audio_checks() -> void:
+	var demo_bgm := preload("res://assets/demo/bgm.wav")
 	Settings.set_setting("master_volume", 0.0)
 	_check(AudioServer.is_bus_mute(AudioServer.get_bus_index("Master")), "Master volume zero mutes output")
 	Settings.set_setting("master_volume", 0.8)
 	_check(not AudioServer.is_bus_mute(0) and absf(db_to_linear(AudioServer.get_bus_volume_db(0)) - 0.8) < 0.001, "Master volume restored")
-	AudioManager.play_bgm(preload("res://assets/demo/bgm.wav"))
+	AudioManager.play_bgm(demo_bgm)
 	_check(AudioManager.bgm.playing, "BGM started")
+	AudioManager.bgm.seek(0.2)
+	AudioManager.play_bgm(demo_bgm)
+	_check(AudioManager.bgm.get_playback_position() >= 0.15, "Re-requesting active BGM keeps playback position")
+	AudioManager.play_bgm(demo_bgm, true)
+	_check(AudioManager.bgm.get_playback_position() < 0.1, "play_bgm restart=true restarts stream from the beginning")
 	AudioManager.set_suspended(true)
 	_check(AudioManager.bgm.stream_paused, "Audio suspended")
-	AudioManager.play_bgm(preload("res://assets/demo/bgm.wav"))
+	AudioManager.play_bgm(demo_bgm)
 	_check(AudioManager.bgm.stream_paused, "Restarted BGM respects existing suspension")
-	AudioManager.play_sfx(preload("res://assets/demo/bgm.wav"))
-	AudioManager.play_ui(preload("res://assets/demo/bgm.wav"))
+	AudioManager.play_sfx(demo_bgm)
+	AudioManager.play_ui(demo_bgm)
 	_check(AudioManager.effect_players.size() == 2, "Suspended SFX and UI players created")
 	for player in AudioManager.effect_players:
 		_check(player.stream_paused, "New effect respects existing suspension")
@@ -489,6 +704,34 @@ func _audio_checks() -> void:
 	_check(AudioManager.bgm.playing and not AudioManager.bgm.stream_paused, "Audio resumed")
 	for player in AudioManager.effect_players:
 		_check(player.playing and not player.stream_paused, "Deferred effect resumes with audio")
+		player.stop()
+		player.queue_free()
+	AudioManager.effect_players.clear()
+	# 메뉴 pause 중에는 BGM·SFX만 멈추고 UI 조작음은 바로 재생되며, 백그라운드 포커스 상실 시에는 UI도 함께 멈춘다.
+	var mute_on_focus: bool = GameConfig.value("lifecycle", "mute_on_focus_loss", true)
+	GameConfig.config.set_value("lifecycle", "mute_on_focus_loss", true)
+	App.set_paused("menu", true)
+	AudioManager.play_sfx(demo_bgm)
+	AudioManager.play_ui(demo_bgm)
+	var menu_sfx := AudioManager.effect_players[0]
+	var menu_ui := AudioManager.effect_players[1]
+	_check(AudioManager.bgm.stream_paused and menu_sfx.stream_paused and menu_ui.playing and not menu_ui.stream_paused, "Menu pause suspends BGM/SFX while keeping UI sound active")
+	App._notification(NOTIFICATION_APPLICATION_FOCUS_OUT)
+	_check(menu_ui.stream_paused, "Focus loss mute also suspends active UI sound")
+	App._notification(NOTIFICATION_APPLICATION_FOCUS_IN)
+	_check(menu_sfx.stream_paused and menu_ui.playing and not menu_ui.stream_paused, "Focus return resumes UI sound while menu pause keeps SFX suspended")
+	App.set_paused("menu", false)
+	GameConfig.config.set_value("lifecycle", "mute_on_focus_loss", mute_on_focus)
+	for player in AudioManager.effect_players:
+		player.stop()
+		player.queue_free()
+	AudioManager.effect_players.clear()
+	for i in AudioManager.MAX_EFFECTS:
+		AudioManager.play_sfx(demo_bgm)
+	AudioManager.play_ui(demo_bgm)
+	_check(AudioManager.effect_players.size() == AudioManager.MAX_EFFECTS + 1 \
+		and AudioManager.effect_players[-1].bus == &"UI", "Full SFX pool does not drop UI sound")
+	for player in AudioManager.effect_players:
 		player.stop()
 		player.queue_free()
 	AudioManager.effect_players.clear()

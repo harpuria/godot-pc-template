@@ -40,7 +40,7 @@ func initialize() -> void:
 	if GameConfig.enabled("store"):
 		if GameConfig.use_mocks():
 			selected = MockStoreAdapter.new()
-		elif channel == "steam" and GameConfig.value("services", "mode", "disabled") == "native" and _registered_store_adapter != null:
+		elif GameConfig.value("services", "mode", "disabled") == "native" and _registered_store_adapter != null:
 			selected = _registered_store_adapter
 	store = StoreService.new()
 	add_child(store)
@@ -51,6 +51,7 @@ func initialize() -> void:
 	var error := SaveManager.load_slot()
 	if error != OK:
 		push_warning("Save load failed; writes blocked: %s" % error_string(error))
+	SaveManager.start_autosave()
 	ready_for_game = true
 	AppLogger.info("App", "OS=%s Channel=%s Store=%s Mock=%s" % [DesktopPlatform.current(), channel, store.available, store.is_mock()])
 	initialized.emit()
@@ -91,6 +92,7 @@ func _notification(what: int) -> void:
 		return
 	match what:
 		NOTIFICATION_APPLICATION_FOCUS_OUT:
+			InputManager.cancel_capture()
 			SaveManager.flush()
 			set_paused("focus", bool(GameConfig.value("lifecycle", "pause_on_focus_loss", true)))
 			if bool(GameConfig.value("lifecycle", "mute_on_focus_loss", true)):
@@ -103,19 +105,21 @@ func _notification(what: int) -> void:
 			_audio_reasons.erase("focus")
 			_update_audio()
 		NOTIFICATION_WM_CLOSE_REQUEST:
+			InputManager.cancel_capture()
 			var handled := not quit_requested.get_connections().is_empty()
 			quit_requested.emit()
 			if not handled:
 				request_quit()
 
 func _update_audio() -> void:
-	# focus의 오디오는 mute_on_focus_loss만 결정한다. 메뉴·overlay는 계속 정지한다.
+	# focus의 오디오는 mute_on_focus_loss만 결정한다. 메뉴·overlay 등은 BGM·SFX만 정지하고 UI 효과음은 남긴다.
 	var suspend_for_pause := false
 	for reason in _pause_reasons:
 		if reason != "focus":
 			suspend_for_pause = true
 			break
-	AudioManager.set_suspended(suspend_for_pause or not _audio_reasons.is_empty())
+	var suspend_all := not _audio_reasons.is_empty()
+	AudioManager.set_suspended(suspend_for_pause or suspend_all, suspend_all)
 
 ## 변경된 진행을 저장한 후 종료한다. 실패하면 UI가 복구를 선택할 수 있도록 종료를 보류한다.
 ## quit_failed를 구독한 곳이 없으면 기본 저장 실패 대화상자를 표시한다.

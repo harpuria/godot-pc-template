@@ -15,7 +15,7 @@ Steam 플러그인과 Steamworks SDK는 **설치되어 있지 않다**. 게임 �
 | `request_succeeded`, `request_failed` | 요청별 실제 완료·오류 |
 | `overlay_changed(open)` | SDK가 전달한 overlay 열림/닫힘; App의 독립 pause 이유 |
 
-동기 반환값 OK는 수락이다. 요청은 한 번에 하나씩 처리하고 timeout과 request_id로 연결한다. 중복·늦은 callback은 무시한다. 오버레이 요청 성공이 창 표시 완료나 사용자 행동 완료를 보장하지 않는다. Mock은 실제 overlay 창을 열지 않는다.
+동기 반환값 OK는 수락이다. 요청은 유한 대기열에 넣어 한 번에 하나씩 처리하고 timeout과 request_id로 연결한다(대기열 한도 초과 시 `ERR_BUSY`). 중복·늦은 callback은 무시한다. 오버레이 요청 성공이 창 표시 완료나 사용자 행동 완료를 보장하지 않는다. Mock은 실제 overlay 창을 열지 않는다.
 
 Debug `mode=mock`에서만 Mock이 성공한다. Release에서는 기본 Adapter가 unavailable을 반환하고 로컬 게임 기능은 계속 동작한다. itch.io/Standalone SDK 연결은 기본 API의 필수 요건이 아니다.
 
