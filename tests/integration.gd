@@ -9,6 +9,8 @@ class ProbeAdapter extends StoreAdapter:
 		return true
 	func capabilities() -> Dictionary:
 		return {"achievements": true, "leaderboards": true, "overlay": true}
+	func user_id() -> String:
+		return "probe-user"
 	func execute(id: int, _operation: String, _payload: Dictionary) -> void:
 		requests.append(id)
 
@@ -107,10 +109,13 @@ func _run() -> void:
 	# 통합 검사를 App 아래로 옮겨 실제 current_scene 교체 뒤에도 검사를 계속한다.
 	reparent(App)
 	get_tree().current_scene = null
-	_check(SceneManager.change_scene("res://scenes/main.tscn") == OK, "Demo transition accepted")
+	InputManager.start_capture(&"primary_action")
+	_check(SceneManager.change_scene("res://scenes/main.tscn") == OK and InputManager.capturing.is_empty(), "Scene transition cancels pending input capture")
 	_check(SceneManager.change_scene("res://scenes/transition_demo.tscn") == ERR_BUSY, "Duplicate transition rejected")
 	await SceneManager.transition_completed
 	_check(get_tree().current_scene.scene_file_path == "res://scenes/main.tscn", "Demo scene entered")
+	var demo_scrolls := get_tree().current_scene.find_children("*", "ScrollContainer", true, false)
+	_check(not demo_scrolls.is_empty() and (demo_scrolls[0] as ScrollContainer).follow_focus, "Demo scroll container follows keyboard/gamepad focus")
 	_check(not SceneManager.transitioning, "Transition completed state")
 	if "--capture" in args and DesktopPlatform.has_window():
 		await RenderingServer.frame_post_draw
@@ -270,6 +275,21 @@ func _settings_checks() -> void:
 	var errors_b: Array[int] = []
 	panel_a.operation_failed.connect(func(err: int): errors_a.append(err))
 	panel_b.operation_failed.connect(func(err: int): errors_b.append(err))
+	Settings.write_blocked = true
+	sfx_slider.drag_started.emit()
+	sfx_slider.value = 0.2
+	sfx_slider.value = 0.3
+	_check(errors_a.is_empty(), "Blocked slider drag does not emit repeated failure signals mid-drag")
+	sfx_slider.drag_ended.emit(true)
+	_check(errors_a == [ERR_UNAUTHORIZED] and is_equal_approx(sfx_slider.value, 0.5), "Blocked slider drag reports failure once on drag_ended and snaps back")
+	errors_a.clear()
+	var blocked_settings_path := _directory + "/blocked_settings.cfg"
+	DirAccess.make_dir_recursive_absolute(blocked_settings_path + ".tmp")
+	Settings.storage_path = blocked_settings_path
+	_check(Settings.reset_to_defaults() != OK and Settings.write_blocked, "Failed settings reset preserves write_blocked state")
+	DirAccess.remove_absolute(blocked_settings_path + ".tmp")
+	Settings.storage_path = original_settings_path
+	Settings.write_blocked = false
 	panel_a._start_capture(0)
 	panel_b.free()
 	_check(not InputManager.capturing.is_empty(), "Freeing non-owning settings panel keeps active capture alive")
@@ -335,6 +355,15 @@ func _translation_checks() -> void:
 
 func _input_checks() -> void:
 	_check(InputMap.has_action("move_left") and InputMap.has_action("primary_action"), "Default input exists")
+	var joy_accept := InputEventJoypadButton.new()
+	joy_accept.device = 0
+	joy_accept.button_index = JOY_BUTTON_A
+	joy_accept.pressed = true
+	var joy_cancel := InputEventJoypadButton.new()
+	joy_cancel.device = 0
+	joy_cancel.button_index = JOY_BUTTON_B
+	joy_cancel.pressed = true
+	_check(InputMap.event_is_action(joy_accept, &"ui_accept") and InputMap.event_is_action(joy_cancel, &"ui_cancel"), "Gamepad A/B buttons drive ui_accept and ui_cancel")
 	_check(InputMap.action_get_deadzone("move_left") >= 0.05, "Controller deadzone configured")
 	var key := InputEventKey.new()
 	key.physical_keycode = KEY_J
@@ -406,6 +435,13 @@ func _input_checks() -> void:
 	_check(load_errors == [ERR_INVALID_DATA], "Malformed bindings reported through load_failed")
 	InputManager.load_failed.disconnect(load_listener)
 	_check(InputManager.save_bindings() == ERR_UNAUTHORIZED, "Bindings corruption blocks write")
+	var blocked_input_path := _directory + "/blocked_input.cfg"
+	DirAccess.make_dir_recursive_absolute(blocked_input_path + ".tmp")
+	InputManager.storage_path = blocked_input_path
+	_check(InputManager.reset_bindings() != OK and InputManager.write_blocked \
+		and InputManager.slot_events(&"test_later", "keyboard_mouse")[0].physical_keycode == KEY_O, "Failed bindings reset rolls back memory and write_blocked")
+	DirAccess.remove_absolute(blocked_input_path + ".tmp")
+	InputManager.storage_path = original_input_path
 	_check(InputManager.reset_bindings() == OK, "Default controls restored")
 	_check(InputManager.slot_events(&"test_later", "keyboard_mouse")[0].physical_keycode == KEY_P, "Reset restores registered action defaults")
 	_check(InputManager.start_capture(&"primary_action") == OK, "Capture started")
@@ -475,10 +511,15 @@ func _input_checks() -> void:
 	add_child(clear_panel)
 	clear_panel._action.select(clear_panel._action_index(&"move_left"))
 	clear_panel._refresh_binding()
-	_check(not clear_panel._clear_secondary.disabled, "Clear secondary button enabled when secondary binding exists")
+	var clear_km := clear_panel._clear_buttons["keyboard_mouse"] as Button
+	var clear_pad := clear_panel._clear_buttons["controller"] as Button
+	_check(not clear_km.disabled and not clear_pad.disabled, "Per-device clear secondary buttons enabled when secondary bindings exist")
 	_check(InputManager.clear_slot(&"move_left", "keyboard_mouse", 1) == OK \
 		and InputManager.slot_events(&"move_left", "keyboard_mouse").size() == 1, "Secondary slot cleared cleanly")
-	_check(clear_panel._clear_secondary.disabled, "Clear secondary button disables after secondary slot is cleared")
+	InputManager.active_device = "keyboard_mouse"
+	_check(clear_km.disabled and not clear_pad.disabled, "Controller secondary clear stays clickable when active_device is keyboard_mouse")
+	clear_pad.pressed.emit()
+	_check(InputManager.slot_events(&"move_left", "controller").size() == 1 and clear_pad.disabled, "Clicking controller clear button clears controller secondary slot")
 	_check(InputManager.rebind(&"primary_action", DefaultInput.key(KEY_LEFT), 0) == OK, "Freed secondary key can be rebound to another action")
 	_check(InputManager.clear_slot(&"pause", "keyboard_mouse", 0) == ERR_INVALID_PARAMETER, "Last keyboard pause binding cannot be cleared")
 	_check(InputManager.clear_slot(&"test_later", "keyboard_mouse", 0) == ERR_INVALID_PARAMETER, "Last remaining binding on an action cannot be cleared")
@@ -527,6 +568,7 @@ func _quit_checks() -> void:
 	App.pause_reason_changed.disconnect(reason_listener)
 	var menu := PauseMenu.new()
 	add_child(menu)
+	_check(menu._settings_scroll.follow_focus, "Pause menu settings scroll follows keyboard/gamepad focus")
 	menu.open()
 	_check(menu.is_open() and get_tree().paused, "Pause menu opens and pauses")
 	menu.close()
@@ -541,6 +583,18 @@ func _quit_checks() -> void:
 	_check(menu.is_open(), "Pause action opens the menu")
 	menu._unhandled_input(pause_event)
 	_check(not menu.is_open() and not get_tree().paused, "Pause action closes the menu")
+	var cancel_event := InputEventAction.new()
+	cancel_event.action = &"ui_cancel"
+	cancel_event.pressed = true
+	menu._unhandled_input(cancel_event)
+	_check(not menu.is_open(), "ui_cancel while closed does not open pause menu")
+	menu.open()
+	menu._toggle_settings()
+	_check(menu._settings_scroll.visible, "Pause menu opens settings view")
+	menu._unhandled_input(cancel_event)
+	_check(menu.is_open() and not menu._settings_scroll.visible, "ui_cancel closes pause settings view first")
+	menu._unhandled_input(cancel_event)
+	_check(not menu.is_open() and not get_tree().paused, "Second ui_cancel closes pause menu and resumes")
 	menu.queue_free()
 	await get_tree().process_frame
 	InputManager.start_capture(&"primary_action")
@@ -581,13 +635,13 @@ func _service_checks() -> void:
 	var probe := ProbeAdapter.new()
 	add_child(disabled)
 	disabled.initialize("steam", false, probe, {}, {})
-	_check(probe.initialized_count == 0, "Disabled service skips SDK initialization")
+	_check(probe.initialized_count == 0 and disabled.user_id().is_empty(), "Disabled service skips SDK initialization and returns empty user_id")
 	disabled.queue_free()
 	var itch_service := StoreService.new()
 	var itch_probe := ProbeAdapter.new()
 	add_child(itch_service)
 	itch_service.initialize("itch", true, itch_probe, {"WIN": "ITCH_WIN"}, {})
-	_check(itch_service.available and itch_probe.initialized_count == 1, "Verified native adapter can initialize on non-Steam channels")
+	_check(itch_service.available and itch_probe.initialized_count == 1 and itch_service.user_id() == "probe-user", "Verified native adapter initializes and exposes user_id on non-Steam channels")
 	itch_service.queue_free()
 	var service := StoreService.new()
 	var delayed := ProbeAdapter.new()
@@ -691,17 +745,18 @@ func _audio_checks() -> void:
 	_check(AudioManager.bgm.get_playback_position() >= 0.15, "Re-requesting active BGM keeps playback position")
 	AudioManager.play_bgm(demo_bgm, true)
 	_check(AudioManager.bgm.get_playback_position() < 0.1, "play_bgm restart=true restarts stream from the beginning")
+	AudioManager.bgm.seek(0.25)
 	AudioManager.set_suspended(true)
 	_check(AudioManager.bgm.stream_paused, "Audio suspended")
 	AudioManager.play_bgm(demo_bgm)
-	_check(AudioManager.bgm.stream_paused, "Restarted BGM respects existing suspension")
+	_check(AudioManager.bgm.stream_paused and AudioManager.bgm.get_playback_position() >= 0.2, "Re-requesting BGM while suspended preserves pause and playback position")
 	AudioManager.play_sfx(demo_bgm)
 	AudioManager.play_ui(demo_bgm)
 	_check(AudioManager.effect_players.size() == 2, "Suspended SFX and UI players created")
 	for player in AudioManager.effect_players:
 		_check(player.stream_paused, "New effect respects existing suspension")
 	AudioManager.set_suspended(false)
-	_check(AudioManager.bgm.playing and not AudioManager.bgm.stream_paused, "Audio resumed")
+	_check(AudioManager.bgm.playing and not AudioManager.bgm.stream_paused and AudioManager.bgm.get_playback_position() >= 0.2, "Audio resumed from preserved BGM position")
 	for player in AudioManager.effect_players:
 		_check(player.playing and not player.stream_paused, "Deferred effect resumes with audio")
 		player.stop()

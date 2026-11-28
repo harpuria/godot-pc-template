@@ -9,9 +9,15 @@ cd "$(dirname "$0")/.."
 GODOT="${GODOT:-godot}"
 LOG_DIR="${LOG_DIR:-build/validation_logs}"
 RUN_GUI=0
-if [ "${1:-}" = "--gui" ]; then
-	RUN_GUI=1
+if [ "$#" -gt 1 ]; then
+	echo "Usage: $0 [--gui]"
+	exit 2
 fi
+case "${1:-}" in
+	"") ;;
+	--gui) RUN_GUI=1 ;;
+	*) echo "Usage: $0 [--gui]"; exit 2 ;;
+esac
 if [ ! -f .godot-version ]; then
 	echo "FAIL: .godot-version is missing."
 	exit 1

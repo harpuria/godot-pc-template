@@ -114,7 +114,7 @@ func _initialize() -> void:
 			include_filter = _append_filter(include_filter, str(config.get_value("export", "extra_include_filter", "")))
 			exclude_filter = _append_filter(exclude_filter, str(config.get_value("export", "extra_exclude_filter", "")))
 			if exclude_demo:
-				exclude_filter += ",scenes/main.tscn,scenes/demo.gd,scenes/transition_demo.*,assets/demo/*"
+				exclude_filter = _append_filter(exclude_filter, "scenes/main.tscn,scenes/demo.gd,scenes/transition_demo.*,assets/demo/*")
 			if channel != "steam":
 				exclude_filter = _append_filter(exclude_filter, str(config.get_value("export", "steam_only_filter", "")))
 			presets.set_value(section, "include_filter", include_filter)

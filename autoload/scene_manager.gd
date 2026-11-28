@@ -16,6 +16,7 @@ func change_scene(path: String, show_loading: bool = true) -> Error:
 	if not ResourceLoader.exists(path, "PackedScene"):
 		transition_failed.emit(path, ERR_FILE_NOT_FOUND)
 		return ERR_FILE_NOT_FOUND
+	InputManager.cancel_capture()
 	transitioning = true
 	if show_loading:
 		overlay = preload("res://ui/loading/loading.tscn").instantiate()

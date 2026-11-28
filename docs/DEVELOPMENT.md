@@ -33,7 +33,7 @@ third_party/           엔진·제3자 배포 고지
 docs/                  가이드와 참고 문서
 docs/template/         템플릿 적용·이력·구현·검증 기록
 docs/distribution/     SteamPipe 업로드 예시
-.github/workflows/     CI (tools/validate.sh를 Linux headless Godot으로 실행)
+.github/workflows/     CI (tools/validate.sh --gui로 Linux headless·Xvfb GUI 회귀 및 리소스 일관성 검사)
 build/                 로컬 export 결과 (Git 제외)
 ```
 
@@ -59,7 +59,7 @@ build/                 로컬 export 결과 (Git 제외)
 | `app` | main_scene, init_script | 다시 실행 |
 | `display` | viewport/window/minimum 크기 | configure; 사용자 설정이 기본값보다 우선 |
 | `display` | default_mode, default_vsync, default_max_fps | 새 사용자의 기본값 |
-| `input` | controller_deadzone | 다시 실행; 0.05~0.95 |
+| `input` | controller_deadzone | configure 또는 다시 실행; 0.05~0.95 |
 | `export` | extra_include_filter, extra_exclude_filter, exclude_demo, steam_only_filter | configure 후 export |
 | `lifecycle` | pause_on_focus_loss, mute_on_focus_loss | 다시 실행 |
 | `save` | autosave_seconds | 다시 실행; 최소 1초 |
@@ -80,7 +80,7 @@ godot --headless --path . --editor --import --quit
 godot --headless --path . --script res://tools/configure.gd
 ```
 
-configure는 앱 정보, 화면 크기, 없는 기본 action, 공통 UI 번역 등록과 export preset 0~8번(Windows·macOS·Linux × Standalone·Itch·Steam)을 갱신하고 `build/` 출력 폴더를 만든다. 이미 있는 Input Map, 추가 custom feature, 서명·아이콘 같은 preset 옵션은 유지한다. 직접 만든 preset은 9번 이후에 두며, 0~8번 자리에 다른 이름의 preset이 있으면 덮어쓰지 않고 실패한다.
+configure는 앱 정보, 화면 크기, 기본 action(및 기존 기본 action의 deadzone), 공통 UI 번역 등록과 export preset 0~8번(Windows·macOS·Linux × Standalone·Itch·Steam)을 갱신하고 `build/` 출력 폴더를 만든다. 이미 있는 Input Map의 바인딩, 추가 custom feature, 서명·아이콘 같은 preset 옵션은 유지한다. 직접 만든 preset은 9번 이후에 두며, 0~8번 자리에 다른 이름의 preset이 있으면 덮어쓰지 않고 실패한다.
 
 ## 사용자 데이터 파일
 

@@ -25,6 +25,7 @@ var _stored: Dictionary = {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_ensure_ui_gamepad_defaults()
 	var baseline := DefaultInput.actions()
 	for action in COMMON_ACTIONS:
 		_add_action(action, baseline[action])
@@ -95,7 +96,8 @@ func load_bindings() -> Error:
 	write_blocked = false
 	if recovered_temp:
 		push_warning("Bindings restored from an interrupted replace: %s.tmp" % storage_path)
-		save_bindings()
+		if DirAccess.rename_absolute(storage_path + ".tmp", storage_path) != OK:
+			save_bindings()
 	return OK
 
 ## 다음 입력을 지정 action의 slot 칸에 할당한다. 수정키 단독 입력은 기다리고 Escape는 취소한다.
@@ -182,15 +184,25 @@ func clear_slot(action: StringName, category: String, slot: int = 1) -> Error:
 	bindings_changed.emit(action)
 	return OK
 
-## 확인된 복구 또는 사용자 요청 후 프로젝트의 기본 바인딩으로 되돌린다.
+## 확인된 복구 또는 사용자 요청 후 프로젝트의 기본 바인딩으로 되돌린다. 저장 실패 시 이전 상태를 유지한다.
 func reset_bindings() -> Error:
+	var previous_events: Dictionary = {}
 	for action in _actions:
+		previous_events[action] = InputMap.action_get_events(action)
 		_apply_events(action, _defaults[action])
+	var previous_stored := _stored.duplicate(true)
+	var was_blocked := write_blocked
 	_stored.clear()
 	write_blocked = false
 	var error := save_bindings()
+	if error != OK:
+		for action in _actions:
+			_apply_events(action, previous_events[action])
+		_stored = previous_stored
+		write_blocked = was_blocked
+		return error
 	bindings_changed.emit(&"")
-	return error
+	return OK
 
 ## 객체 대신 입력 종류와 숫자 필드만 저장한다.
 func save_bindings() -> Error:
@@ -359,6 +371,20 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_fullscreen") and not event.is_echo():
 		WindowManager.toggle_fullscreen()
 		get_viewport().set_input_as_handled()
+
+func _ensure_ui_gamepad_defaults() -> void:
+	for pair in [[&"ui_accept", JOY_BUTTON_A], [&"ui_cancel", JOY_BUTTON_B]]:
+		var action: StringName = pair[0]
+		var joy_button: JoyButton = pair[1]
+		if not InputMap.has_action(action):
+			continue
+		var exists := false
+		for event in InputMap.action_get_events(action):
+			if event is InputEventJoypadButton and event.button_index == joy_button:
+				exists = true
+				break
+		if not exists:
+			InputMap.action_add_event(action, DefaultInput.button(joy_button))
 
 func _add_action(action: StringName, fallback: Array) -> void:
 	if not InputMap.has_action(action):

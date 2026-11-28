@@ -92,8 +92,11 @@ func load_slot() -> Error:
 		version += 1
 	data = candidate
 	write_blocked = false
-	# migration 또는 임시 파일 복구 결과는 즉시 원본 경로에 기록한다. 쓰기 실패 시 dirty를 남겨 다음 저장에서 재시도한다.
-	if migrated or bool(result.get("recovered", false)):
+	# 임시 파일 복구는 먼저 rename으로 무손실 승격하고, migration이나 승격 실패 시에만 새 .tmp로 기록한다.
+	var promoted := true
+	if bool(result.get("recovered", false)):
+		promoted = DirAccess.rename_absolute(storage_path + ".tmp", storage_path) == OK
+	if migrated or not promoted:
 		dirty = save_slot() != OK
 	else:
 		dirty = false

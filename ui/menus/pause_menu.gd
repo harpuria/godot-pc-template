@@ -44,6 +44,7 @@ func _ready() -> void:
 		_button(layout, "UI_QUIT", App.dialogs.confirm_quit)
 	_settings_scroll.custom_minimum_size = Vector2(520, 360)
 	_settings_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_settings_scroll.follow_focus = true
 	_settings_scroll.visible = false
 	layout.add_child(_settings_scroll)
 	var settings := SettingsPanel.new()
@@ -81,6 +82,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			_toggle_settings()
 		else:
 			toggle()
+		get_viewport().set_input_as_handled()
+	elif _open and event.is_action_pressed("ui_cancel") and not event.is_echo():
+		if _settings_scroll.visible:
+			_toggle_settings()
+		else:
+			close()
 		get_viewport().set_input_as_handled()
 
 func _button(parent: Control, text: String, callback: Callable) -> Button:

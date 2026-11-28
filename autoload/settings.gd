@@ -76,7 +76,8 @@ func load_settings() -> Error:
 	write_blocked = false
 	if recovered_temp:
 		push_warning("Settings restored from an interrupted replace: %s.tmp" % storage_path)
-		_write_values(values)
+		if DirAccess.rename_absolute(storage_path + ".tmp", storage_path) != OK:
+			_write_values(values)
 	TranslationServer.set_locale(str(values.language))
 	for key in staged:
 		changed.emit(key, values[key])
@@ -126,10 +127,14 @@ func _write_values(candidate: Dictionary) -> Error:
 		save_failed.emit(error)
 	return error
 
-## 사용자에게 복구 선택을 받은 뒤 기본값으로 기존 설정을 교체한다.
+## 사용자에게 복구 선택을 받은 뒤 기본값으로 기존 설정을 교체한다. 저장 실패 시 차단 상태를 유지한다.
 func reset_to_defaults() -> Error:
+	var was_blocked := write_blocked
 	write_blocked = false
-	return set_many(defaults())
+	var error := set_many(defaults())
+	if error != OK:
+		write_blocked = was_blocked
+	return error
 
 func _valid(key: String, value: Variant) -> bool:
 	if key.ends_with("_volume"):

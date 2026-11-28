@@ -12,7 +12,7 @@ var _fps := OptionButton.new()
 var _binding_label := Label.new()
 var _action := OptionButton.new()
 var _slot_buttons: Array[Button] = []
-var _clear_secondary := Button.new()
+var _clear_buttons: Dictionary = {}
 var _volume_sliders: Dictionary = {}
 var _dragging_volume := ""
 var _owns_capture := false
@@ -74,22 +74,24 @@ func _ready() -> void:
 		slots.add_child(button)
 		_slot_buttons.append(button)
 	add_child(slots)
-	var controls := HBoxContainer.new()
-	_clear_secondary.text = "UI_CLEAR_SECONDARY"
-	_clear_secondary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_clear_secondary.pressed.connect(func(): _report(InputManager.clear_slot(_selected_action(), InputManager.active_device, 1)))
-	controls.add_child(_clear_secondary)
+	var clear_row := HBoxContainer.new()
+	for pair in [["keyboard_mouse", "UI_CLEAR_SECONDARY_KEYBOARD"], ["controller", "UI_CLEAR_SECONDARY_CONTROLLER"]]:
+		var category: String = pair[0]
+		var clear_button := Button.new()
+		clear_button.text = pair[1]
+		clear_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		clear_button.pressed.connect(func(): _report(InputManager.clear_slot(_selected_action(), category, 1)))
+		clear_row.add_child(clear_button)
+		_clear_buttons[category] = clear_button
+	add_child(clear_row)
 	var reset := Button.new()
 	reset.text = "UI_RESTORE_CONTROLS"
-	reset.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	reset.pressed.connect(func(): _report(InputManager.reset_bindings()))
-	controls.add_child(reset)
-	add_child(controls)
+	add_child(reset)
 	InputManager.bindings_changed.connect(func(changed_action: StringName):
 		if not changed_action.is_empty() and _action_index(changed_action) == -1:
 			_refresh_actions()
 		_refresh_binding())
-	InputManager.device_changed.connect(func(_device: String): _refresh_binding())
 	InputManager.capture_finished.connect(func(_captured_action: StringName, error: int):
 		var owned := _owns_capture
 		_owns_capture = false
@@ -136,8 +138,9 @@ func _create_volume_slider(key: String) -> HSlider:
 			_dragging_volume = ""
 			_commit_volume(key, slider, slider.value))
 	slider.value_changed.connect(func(value: float):
-		if _dragging_volume == key and not Settings.write_blocked:
-			AudioManager.preview_volume(key, value)
+		if _dragging_volume == key:
+			if not Settings.write_blocked:
+				AudioManager.preview_volume(key, value)
 		else:
 			_commit_volume(key, slider, value))
 	return slider
@@ -220,7 +223,8 @@ func _refresh_binding() -> void:
 		_owns_capture = false
 		_set_capturing(-1)
 	else:
-		_clear_secondary.disabled = true
+		for category in _clear_buttons:
+			(_clear_buttons[category] as Button).disabled = true
 
 func _start_capture(slot: int) -> void:
 	var error := InputManager.start_capture(_selected_action(), slot)
@@ -232,7 +236,9 @@ func _start_capture(slot: int) -> void:
 
 func _set_capturing(slot: int) -> void:
 	_action.disabled = slot >= 0
-	_clear_secondary.disabled = slot >= 0 or InputManager.slot_events(_selected_action(), InputManager.active_device).size() < 2
+	var selected := _selected_action()
+	for category in _clear_buttons:
+		(_clear_buttons[category] as Button).disabled = slot >= 0 or InputManager.slot_events(selected, category).size() < 2
 	for index in _slot_buttons.size():
 		_slot_buttons[index].disabled = slot >= 0 and index != slot
 		_slot_buttons[index].text = "UI_PRESS_INPUT" if index == slot else SLOT_KEYS[index]

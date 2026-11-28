@@ -26,7 +26,7 @@ func _ready() -> void:
 func initialize(selected_channel: String, enabled: bool, selected_adapter: StoreAdapter,
 		achievement_ids: Dictionary, leaderboard_ids: Dictionary, timeout: float = 15.0) -> void:
 	channel = selected_channel
-	adapter = selected_adapter
+	adapter = selected_adapter if selected_adapter != null else StoreAdapter.new()
 	_achievement_ids = achievement_ids.duplicate(true)
 	_leaderboard_ids = leaderboard_ids.duplicate(true)
 	_timer.wait_time = maxf(1.0, timeout)
@@ -41,6 +41,10 @@ func supports(feature: String) -> bool:
 ## 실제 SDK 또는 Mock 사용 여부를 UI에 표시할 수 있다.
 func is_mock() -> bool:
 	return adapter != null and adapter.is_mock()
+
+## 초기화된 Adapter가 제공하는 스토어 사용자 식별자를 반환한다. 사용할 수 없으면 빈 문자열이다.
+func user_id() -> String:
+	return adapter.user_id() if available and adapter != null else ""
 
 ## 게임이 정의한 논리 업적 ID를 스토어 ID로 변환하여 요청한다.
 func unlock_achievement(logical_id: String) -> Error:

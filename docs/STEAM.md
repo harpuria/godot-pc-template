@@ -9,6 +9,7 @@ Steam 플러그인과 Steamworks SDK는 **설치되어 있지 않다**. 게임 �
 | `App.store.channel` | standalone / itch / steam 배포 채널 |
 | `available`, `supports(feature)` | 초기화된 Adapter와 현재 기능 지원 여부 |
 | `is_mock()` | Debug 연습 결과 구분 |
+| `user_id()` | 초기화된 Adapter가 제공하는 계정 식별자(사용 불가 시 `""`) |
 | `unlock_achievement(logical_id)` | 논리 업적 해제 요청 |
 | `submit_score(logical_id, score)` | 논리 리더보드에 정수 점수 제출 요청 |
 | `open_overlay("achievements"/"friends")` | SDK UI 표시 요청 |

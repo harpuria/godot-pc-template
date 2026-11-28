@@ -19,11 +19,12 @@ func _ready() -> void:
 	for bus in ["master", "bgm", "sfx", "ui"]:
 		_apply_setting(bus + "_volume", Settings.get_setting(bus + "_volume", 0.8))
 
-## 전달받은 BGM 스트림을 재생한다. 이미 같은 스트림이 재생 중이면 restart가 true일 때만 처음부터 다시 시작한다.
+## 전달받은 BGM 스트림을 재생한다. 이미 같은 스트림이 재생(또는 일시 정지 유지) 중이면 restart가 true일 때만 처음부터 다시 시작한다.
 func play_bgm(stream: AudioStream, restart: bool = false) -> void:
 	if stream == null:
 		return
-	if bgm.stream == stream and bgm.playing and not restart:
+	var active := bgm.playing or (bgm.stream_paused and bgm.has_stream_playback())
+	if bgm.stream == stream and active and not restart:
 		bgm.stream_paused = _suspended
 		return
 	bgm.stream = stream
