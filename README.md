@@ -17,7 +17,14 @@ PC 게임을 시작할 때 쓰는 공통 프로젝트다. 저장, 설정, 오디
 2. Godot에서 **Import**를 누르고 이 폴더의 `project.godot`를 선택한다.
 3. **F5**를 누른다. `PC TEMPLATE` 화면이 나오면 준비가 끝났다.
 
-Steam 클라이언트나 외부 런타임 플러그인은 필요하지 않다. 에디터용 MCP 플러그인 **Godot AI**(`addons/godot_ai`, v4.4.2)가 기본 활성화되어 있으므로, Claude Code·Cursor·Codex·Antigravity 등 AI 클라이언트를 에디터에 연결할 때만 [uv](https://docs.astral.sh/uv/getting-started/installation/)를 설치하고 에디터의 **Godot AI** 독에서 **Configure**를 누른다(`uv`가 없어도 에디터·게임 실행에는 지장 없다).
+### AI 클라이언트 연결 및 교체
+
+기본 MCP는 에디터에 활성화된 **Godot AI 4.4.2**다. 게임 실행에는 MCP나 별도 Steam 클라이언트가 필요 없다. [Godot AI 업스트림](https://github.com/hi-godot/godot-ai)
+
+1. AI 클라이언트와 Godot에서 모두 `uvx`를 실행할 수 있게 **uv 0.9.25 이상**을 설치한다. 첫 연결 시 PyPI에서 플러그인과 같은 버전의 서버를 받는다. [uv 설치 안내](https://docs.astral.sh/uv/getting-started/installation/)
+2. Godot 에디터에서 프로젝트를 열고, **같은 프로젝트 루트**에서 Codex 또는 Claude Code를 시작한다. Codex는 프로젝트를 신뢰한 후 `.codex/config.toml`을, Claude Code는 프로젝트 MCP를 승인한 후 `.mcp.json`을 사용한다. 두 파일에 기본 stdio 연결이 들어 있다. 다른 클라이언트는 **Godot AI → Configure**에서 연결한다.
+3. 클라이언트에서 `session_manage`의 `list`로 프로젝트 경로를 확인한다. 기본 포트는 HTTP 8000, WebSocket 9500이다. 포트를 바꾸면 두 설정의 `--port`와 `--ws-port`도 맞춘다. 플러그인 업데이트 후에는 두 설정의 `--from` 패키지 버전, `--exclude-newer` 시각, `--python` 범위를 새 [plugin.cfg](addons/godot_ai/plugin.cfg)의 값에 맞춘다.
+4. **다른 MCP를 사용하려면** Godot의 **Project → Project Settings → Plugins**에서 Godot AI를 끄고, 사용하는 클라이언트의 프로젝트 설정 파일에서 `godot-ai` 항목을 새 서버 설정으로 교체한다. 팀 전체에 적용하려면 두 파일을 모두 갱신한다. 새 MCP가 요구하는 에디터 플러그인을 활성화하고 클라이언트를 재시작한다. 이전에 독에서 전역 등록했다면 해당 클라이언트에서 그 등록도 해제한다.
 
 ## 2. 공통 기능 눌러 보기
 

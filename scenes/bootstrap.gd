@@ -12,11 +12,17 @@ func _ready() -> void:
 		_show_failure(tr("UI_START_FAILED") % error_string(error))
 		return
 	App.initialize()
-	var scene := str(GameConfig.value("app", "main_scene", "res://scenes/main.tscn"))
+	var scene := str(GameConfig.value("app", "main_scene", GameConfig.DEFAULT_MAIN_SCENE))
 	error = SceneManager.change_scene(scene)
 	if error != OK:
-		push_error("Cannot open main scene: %s" % scene)
-		_show_failure(tr("UI_MAIN_SCENE_FAILED") % scene)
+		_main_scene_failed(scene, error)
+		return
+	# 수락된 요청은 SceneManager가 이후 프레임에서 로드한다.
+	SceneManager.transition_failed.connect(_main_scene_failed, CONNECT_ONE_SHOT)
+
+func _main_scene_failed(path: String, error: int) -> void:
+	push_error("Cannot open main scene: %s (%s)" % [path, error_string(error)])
+	_show_failure(tr("UI_MAIN_SCENE_FAILED") % path)
 
 func _show_failure(message: String) -> void:
 	var label := Label.new()

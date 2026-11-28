@@ -31,7 +31,8 @@ rsync -a --ignore-existing --exclude .git --exclude .godot --exclude build --exc
 | 파일 / 경로 | 처리 |
 | --- | --- |
 | `autoload/`, `core/`, `services/`, `tools/` | 공통 프레임워크로 유지 |
-| `addons/godot_ai/` | 기본 활성화된 에디터 MCP 플러그인(export 제외). 버전 업그레이드는 파일을 덮어쓰지 않고 에디터 **Godot AI** 독의 **Update**를 사용한다 |
+| `.codex/config.toml`, `.mcp.json` | 새 게임은 프로젝트 단위 Godot AI 연결을 상속한다. 기존 게임은 사용하는 MCP 항목을 보존하고 필요한 항목만 병합한다. [연결 및 교체](../../README.md#ai-클라이언트-연결-및-교체) |
+| `addons/godot_ai/` | 기본 활성화된 에디터 MCP 플러그인(export 제외). 버전 업그레이드는 파일을 덮어쓰지 않고 에디터 **Godot AI** 독의 **Update**를 사용한 뒤 위의 프로젝트 연결 설정도 새 버전에 맞춘다 |
 | `ui/` (`menus`, `dialogs`, `settings`, `loading`, `theme`, `i18n`) | 공통 UI로 유지. Theme과 `ui/i18n/ui.csv`의 문구·언어 열은 게임에 맞게 수정해도 된다 |
 | `scenes/bootstrap.*` | 진입점으로 유지; 게임 초기화는 hook에서 |
 | `scenes/main.tscn`, `scenes/demo.gd`, `scenes/transition_demo.*`, `assets/demo/` | 예제·회귀 검사용으로 유지; 배포에서는 `exclude_demo=true`로 제외 |

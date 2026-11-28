@@ -93,6 +93,8 @@ SaveManager.register_migration(1, func(old: Dictionary) -> Dictionary:
 	return old)
 ```
 
+기존 변환에서 `return {}`로 진행을 초기화했다면 `old.clear()` 후 `return old`로 바꾼다. [마이그레이션 반환 규칙](ARCHITECTURE.md#저장-데이터와-설정)
+
 저장 파일이 손상되었거나 더 새로운 버전이면 원본을 보존하고 쓰기를 막는다(`SaveManager.write_blocked`). 사용자에게 새로 시작할지 물은 뒤에만 `SaveManager.reset_slot()` → `flush()`를 호출한다.
 
 ## 사용자 설정 항목 추가하기

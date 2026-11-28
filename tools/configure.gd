@@ -29,7 +29,14 @@ func _initialize() -> void:
 	var bundle := str(config.get_value("app", "macos_bundle", ""))
 	var version := str(config.get_value("app", "version", ""))
 	var exclude_demo := bool(config.get_value("export", "exclude_demo", false))
-	if exclude_demo and str(config.get_value("app", "main_scene", "")).begins_with("res://scenes/"):
+	var scene_path := str(config.get_value("app", "main_scene", GAME_CONFIG.DEFAULT_MAIN_SCENE))
+	var main_scene: PackedScene
+	if not scene_path.is_empty() and ResourceLoader.exists(scene_path, "PackedScene"):
+		main_scene = ResourceLoader.load(scene_path, "PackedScene") as PackedScene
+	if main_scene == null or not main_scene.can_instantiate():
+		_fail("app/main_scene must reference a loadable PackedScene: %s" % scene_path)
+		return
+	if exclude_demo and main_scene.resource_path.begins_with("res://scenes/"):
 		_fail("Set a game/main_scene before excluding the demo")
 		return
 	if name.is_empty() or not _safe_relative_directory(data_dir) or not _identifier(executable, false) or not _identifier(bundle, true):
@@ -84,11 +91,14 @@ func _initialize() -> void:
 		if not path in translations:
 			translations.append(path)
 	ProjectSettings.set_setting("internationalization/locale/translations", translations)
+	var godot_ai_helper := "*res://addons/godot_ai/runtime/game_helper.gd"
 	var enabled_plugins := PackedStringArray(ProjectSettings.get_setting("editor_plugins/enabled", PackedStringArray()))
 	if "res://addons/godot_ai/plugin.cfg" in enabled_plugins and ResourceLoader.exists("res://addons/godot_ai/runtime/game_helper.gd"):
-		ProjectSettings.set_setting("autoload/_mcp_game_helper", "*res://addons/godot_ai/runtime/game_helper.gd")
+		ProjectSettings.set_setting("autoload/_mcp_game_helper", godot_ai_helper)
 		ProjectSettings.set_initial_value("autoload/_mcp_game_helper", "")
 		ProjectSettings.set_as_basic("autoload/_mcp_game_helper", true)
+	elif ProjectSettings.get_setting("autoload/_mcp_game_helper", "") == godot_ai_helper:
+		ProjectSettings.clear("autoload/_mcp_game_helper")
 	var index := 0
 	for platform_info in PLATFORMS:
 		var platform: String = platform_info[0]
@@ -148,7 +158,11 @@ func _initialize() -> void:
 				_set_default(presets, options, "notarization/notarization", 0)
 			else:
 				_set_default(presets, options, "binary_format/embed_pck", false)
-			DirAccess.make_dir_recursive_absolute("res://" + path.get_base_dir())
+			var output_dir := "res://" + path.get_base_dir()
+			var directory_error := DirAccess.make_dir_recursive_absolute(output_dir)
+			if directory_error != OK:
+				_fail("Cannot create export directory %s: %s" % [output_dir, error_string(directory_error)])
+				return
 			index += 1
 	if ProjectSettings.save() != OK or presets.save("res://export_presets.cfg") != OK:
 		_fail("Could not save project settings or presets; inspect both files")

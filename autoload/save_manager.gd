@@ -25,7 +25,7 @@ func start_autosave() -> void:
 	if _autosave_timer.is_stopped():
 		_autosave_timer.start()
 
-## from_version에서 다음 버전으로 변환하는 Callable(Dictionary)->Dictionary를 등록한다.
+## 다음 버전의 Dictionary를 반환한다. 데이터를 모두 지울 때는 인수의 clear() 후 같은 Dictionary를 반환한다.
 func register_migration(from_version: int, migration: Callable) -> void:
 	migrations[from_version] = migration
 
@@ -86,7 +86,9 @@ func load_slot() -> Error:
 		if not migration.is_valid():
 			return _load_error(ERR_INVALID_PARAMETER)
 		var next: Variant = migration.call(candidate)
-		if not next is Dictionary:
+		# GDScript의 Dictionary 반환 함수는 런타임 오류 때 새 빈 Dictionary를 돌려준다.
+		# 의도적인 빈 결과는 변환 함수가 받은 객체를 직접 반환했을 때만 식별할 수 있다.
+		if not next is Dictionary or (next.is_empty() and not is_same(next, candidate)):
 			return _load_error(ERR_INVALID_DATA)
 		candidate = next
 		version += 1
