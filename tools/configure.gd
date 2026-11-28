@@ -2,7 +2,7 @@
 extends SceneTree
 
 const DEFAULT_INPUT := preload("res://core/input/default_input.gd")
-const ENGINE_VERSION := "4.7.2"
+const GAME_CONFIG := preload("res://autoload/game_config.gd")
 # [preset 이름 접두어, Godot platform, 출력 폴더, 실행 파일 확장자]. 순서가 preset 번호를 정한다.
 const PLATFORMS := [
 	["Windows", "Windows Desktop", "windows", "exe"],
@@ -15,8 +15,9 @@ const UI_TRANSLATIONS := ["res://ui/i18n/ui.en.translation", "res://ui/i18n/ui.k
 
 func _initialize() -> void:
 	var actual := Engine.get_version_info()
-	if "%s.%s.%s" % [actual.major, actual.minor, actual.patch] != ENGINE_VERSION:
-		_fail("Use Godot " + ENGINE_VERSION)
+	var pinned := FileAccess.get_file_as_string("res://.godot-version").strip_edges()
+	if pinned != GAME_CONFIG.ENGINE_VERSION or "%s.%s.%s" % [actual.major, actual.minor, actual.patch] != GAME_CONFIG.ENGINE_VERSION:
+		_fail("Use Godot " + GAME_CONFIG.ENGINE_VERSION + " and keep .godot-version aligned")
 		return
 	var config := ConfigFile.new()
 	if config.load("res://config/game.cfg") != OK:
@@ -66,16 +67,28 @@ func _initialize() -> void:
 	for pair in [["viewport_width", width], ["viewport_height", height], ["window_width_override", window_width],
 		["window_height_override", window_height], ["min_width", min_width], ["min_height", min_height]]:
 		ProjectSettings.set_setting("display/window/size/" + pair[0], pair[1])
+	var deadzone := clampf(float(config.get_value("input", "controller_deadzone", 0.2)), 0.05, 0.95)
 	var inputs: Dictionary = DEFAULT_INPUT.actions()
 	for action in inputs:
 		var key := "input/" + str(action)
 		if not ProjectSettings.has_setting(key):
-			ProjectSettings.set_setting(key, {"deadzone": float(config.get_value("input", "controller_deadzone", 0.2)), "events": inputs[action]})
+			ProjectSettings.set_setting(key, {"deadzone": deadzone, "events": inputs[action]})
+		else:
+			var current: Dictionary = ProjectSettings.get_setting(key)
+			if not is_equal_approx(float(current.get("deadzone", 0.2)), deadzone):
+				var updated := current.duplicate()
+				updated["deadzone"] = deadzone
+				ProjectSettings.set_setting(key, updated)
 	var translations := PackedStringArray(ProjectSettings.get_setting("internationalization/locale/translations", PackedStringArray()))
 	for path: String in UI_TRANSLATIONS:
 		if not path in translations:
 			translations.append(path)
 	ProjectSettings.set_setting("internationalization/locale/translations", translations)
+	var enabled_plugins := PackedStringArray(ProjectSettings.get_setting("editor_plugins/enabled", PackedStringArray()))
+	if "res://addons/godot_ai/plugin.cfg" in enabled_plugins and ResourceLoader.exists("res://addons/godot_ai/runtime/game_helper.gd"):
+		ProjectSettings.set_setting("autoload/_mcp_game_helper", "*res://addons/godot_ai/runtime/game_helper.gd")
+		ProjectSettings.set_initial_value("autoload/_mcp_game_helper", "")
+		ProjectSettings.set_as_basic("autoload/_mcp_game_helper", true)
 	var index := 0
 	for platform_info in PLATFORMS:
 		var platform: String = platform_info[0]
@@ -102,11 +115,11 @@ func _initialize() -> void:
 			presets.set_value(section, "custom_features", ",".join(custom))
 			presets.set_value(section, "export_filter", "all_resources")
 			var include_filter := "config/game.cfg,third_party/*.txt"
-			var exclude_filter := "docs/*,tests/*,tools/*,*.md,config/*.local.cfg,steam_appid.txt,build/*,dist/*"
+			var exclude_filter := "addons/godot_ai/*,docs/*,tests/*,tools/*,*.md,config/*.local.cfg,steam_appid.txt,build/*,dist/*"
 			include_filter = _append_filter(include_filter, str(config.get_value("export", "extra_include_filter", "")))
 			exclude_filter = _append_filter(exclude_filter, str(config.get_value("export", "extra_exclude_filter", "")))
 			if exclude_demo:
-				exclude_filter += ",scenes/main.tscn,scenes/demo.gd,scenes/transition_demo.*,assets/demo/*"
+				exclude_filter = _append_filter(exclude_filter, "scenes/main.tscn,scenes/demo.gd,scenes/transition_demo.*,assets/demo/*")
 			if channel != "steam":
 				exclude_filter = _append_filter(exclude_filter, str(config.get_value("export", "steam_only_filter", "")))
 			presets.set_value(section, "include_filter", include_filter)
@@ -148,7 +161,13 @@ func _set_default(file: ConfigFile, section: String, key: String, value: Variant
 		file.set_value(section, key, value)
 
 func _append_filter(base: String, extra: String) -> String:
-	return base + "," + extra if not extra.strip_edges().is_empty() else base
+	var parts := PackedStringArray()
+	for source in [base, extra]:
+		for token in str(source).split(",", false):
+			var trimmed := token.strip_edges()
+			if not trimmed.is_empty() and not trimmed in parts:
+				parts.append(trimmed)
+	return ",".join(parts)
 
 func _safe_relative_directory(value: String) -> bool:
 	if value.is_empty() or value.is_absolute_path() or value.contains("\\") or value.contains(":"):

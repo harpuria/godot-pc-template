@@ -2,6 +2,23 @@
 
 Template 0.1.0 및 미출시 보완의 실제 실행 기록이다. 최신 기록이 위에 있다. 다른 템플릿(모바일 등)이나 다른 OS의 결과를 승계하지 않는다.
 
+## 런타임·설정·회귀 검사 보완 검증 — 2026-11-27
+
+메뉴 pause 중 `UI` 효과음 유지·한도 분리·일시 정지 중 동일 BGM 위치 유지, 물리 키코드 정규화·`pause`의 Escape 재할당·게임패드 `ui_accept`/`ui_cancel` 기본 매핑 및 스크롤 포커스 추적·장치별 보조 슬롯 비우기 버튼 분리·입력 범위 대칭화, 열린 `PauseMenu`의 `ui_cancel` 닫기 및 장면 전환 정리·`QuitDialogs` 중복/재시도 pause 처리·캡처 자동 취소, 미완성 첫 쓰기 `.tmp` 보호·복구 `.tmp` 무손실 선(先) 승격·복구 실패 시 롤백·autosave 시작 시점 분리, 로케일 지역/fallback 매칭·다중 번역 리소스 순회, `SettingsPanel` 동기화·커스텀 항목 단일 유지·슬라이더 드래그 저장 디바운스·캡처 소유권 분리, `WindowManager` 클램핑 역덮어쓰기 차단·위치 유지, `StoreService` FIFO 요청 대기열·`user_id()`·채널 무관 native adapter 활성화, `Godot AI` **4.4.2**(`addons/godot_ai`) 기본 활성화 및 export 제외, MIT `LICENSE`·단일 엔진 버전 상수·`configure.gd` deadzone/필터 보완·`validate.sh --gui` 및 파생 게임 설정 격리 후 실행했다. **Linux 환경**의 결과이며 Windows/macOS 실행으로 간주하지 않는다.
+
+환경: Linux x86_64(Ubuntu 24.04), Godot `4.7.2.stable.official.ed1daf0bf` 공식 Linux 바이너리. GUI는 Xvfb + Mesa llvmpipe(OpenGL 4.5, Compatibility), 오디오는 dummy 드라이버.
+
+| 검사 | 결과 |
+| --- | --- |
+| `tools/validate.sh` | import PASS; integration 기본 / `--disabled` / `--native` 각각 **271 checks, 0 failures**; bootstrap 실패 2종 PASS; 알 수 없는 CLI 옵션 거절(exit 2); 전체 exit 0 |
+| `xvfb-run -a tools/validate.sh --gui` | 위 headless 검사 + `gui-integration` **284 checks, 0 failures**, exit 0, 스크립트·누수 오류 없음 (usable 클램핑 크기 미덮어쓰기·비해상도 변경 시 창 위치 유지 포함) |
+| `Godot AI` 4.4.2 서명·에디터 로드 | 공식 `v4.4.2` 매니페스트 RSA-4096 서명·ZIP·설치 트리 해시(`1ba13c2c...`, 325개 파일) 검증 통과; Xvfb GUI `--editor --quit-after 3` 실행 시 `MCP | plugin loaded` ~ `plugin unloaded` 정상 종료, 스크립트 오류 없음, `project.godot` 무변경 |
+| 파생 게임 복사본 격리 검사 | 임시 복사본에서 `main_scene="res://game/main.tscn"`, `store_enabled=false`, `mode="disabled"`, 게임 전용 `achievement_ids`/`leaderboard_ids`, `game/game_init.gd`의 `schema_version=2`·migration·`register_action(&"interact", ...)` 활성화 후 `tools/validate.sh` 실행 → 전 항목 PASS |
+| configure·고지 생성 반복성 및 격리 검사 | `tools/configure.gd`·`tools/write_engine_notices.gd` 실행 후 `git diff --exit-code -- project.godot export_presets.cfg third_party/` 변경 없음(exit 0); 격리 복사본에서 `controller_deadzone=0.35` 변경 시 기존 기본 action 7종 `deadzone` 갱신 및 필터 공백/중복 제거 확인 |
+| GitHub Actions `Validate` | PR #5의 GitHub 러너 실행에서 공식 `SHA512-SUMS.txt` 검증·Xvfb `--gui`·리소스 diff 단계까지 통과 확인 |
+
+확인하지 않은 범위: 이번 변경의 Windows/macOS 실제 실행, 다중 물리 모니터·작업 표시줄 환경 및 실제 물리 게임패드·비-QWERTY 키보드 직접 조작, export 템플릿 재빌드.
+
 ## 점검 보완 검증 — 2026-11-04
 
 `.tmp` 복구, OS 언어 기본값, CI action 갱신 후 실행했다. 이어서 공통 UI 번역과 확인창 없는 전체 화면 단축키를 추가하고 다시 실행했다(아래 표의 최신 수치). **Linux 환경**의 결과이며 Windows/macOS 실행으로 간주하지 않는다.

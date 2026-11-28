@@ -45,6 +45,8 @@ UI_KEYBOARD_MOUSE,Keyboard / mouse,키보드 / 마우스
 UI_CONTROLLER,Controller,컨트롤러
 UI_REBIND_PRIMARY,Rebind primary,주 입력 변경
 UI_REBIND_SECONDARY,Rebind secondary,보조 입력 변경
+UI_CLEAR_SECONDARY_KEYBOARD,Clear 2nd (key/mouse),키보드/마우스 보조 비우기
+UI_CLEAR_SECONDARY_CONTROLLER,Clear 2nd (controller),컨트롤러 보조 비우기
 UI_PRESS_INPUT,Press a key / button (Esc cancels),키나 버튼을 누르세요 (Esc 취소)
 UI_RESTORE_CONTROLS,Restore default controls,기본 조작으로 복원
 UI_ACTION_MOVE_LEFT,Move left,왼쪽 이동

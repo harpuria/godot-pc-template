@@ -1,5 +1,24 @@
 # Changelog
 
+## 미출시 — 런타임·설정·회귀 검사 보완 (2026-11-27)
+
+- 오디오: `menu`·`quit_dialog`·`overlay` 등 focus 외 pause 중에는 `BGM`·`SFX`만 정지하고 메뉴 조작을 위한 `UI` 효과음(`AudioManager.play_ui()`)은 바로 재생한다. 이전에는 메뉴가 열려 있는 동안 `UI` 효과음도 일시 정지되어 메뉴를 닫을 때 밀린 소리가 한꺼번에 재생되었다. `SFX`와 `UI`의 동시 재생 한도(`MAX_EFFECTS`)도 버스별로 분리했다. `AudioManager.play_bgm(stream, restart = false)`은 같은 스트림이 이미 재생 중이거나 일시 정지(`stream_paused`) 중이면 위치를 유지하고 `restart = true`일 때만 처음부터 다시 재생한다.
+- 입력·게임패드 UI: 키보드 바인딩에 `physical_keycode`가 있으면 저장·복원 시 `keycode=0`으로 정규화하여 물리 키 위치 기준으로 일관되게 비교하고, 창 환경에서는 현재 키보드 배열 글자로 표시한다. 다른 키로 바꾼 `pause` action도 다른 칸에 Escape가 없을 때는 캡처 UI에서 수정키 없는 단독 Escape로 다시 할당할 수 있다. 시작 시 `ui_accept`·`ui_cancel`에 게임패드 A·B 버튼 기본값을 보강하고 `PauseMenu`·데모 스크롤 컨테이너에 `follow_focus`를 켜 게임패드·키보드만으로 메뉴·목록·대화상자를 조작할 수 있게 했다. 보조 슬롯 개별 해제(`InputManager.clear_slot()`)는 마우스 클릭 시 `active_device` 전환과 충돌하지 않도록 설정 패널에서 키보드/마우스용(`UI_CLEAR_SECONDARY_KEYBOARD`)과 컨트롤러용(`UI_CLEAR_SECONDARY_CONTROLLER`) 버튼을 분리했다. 지원 범위를 벗어난 마우스·패드 버튼 입력은 `encode_event()` 단계에서 거절한다.
+- Pause·종료·전환 UI: `PauseMenu`가 열려 있을 때 `ui_cancel`(패드 B 등)로도 설정·메뉴를 닫을 수 있으며, 열린 채 장면 전환 등으로 트리에서 제거될 때 자신이 켰던 `menu` pause 이유를 해제하고 전환 진행 중에는 pause 단축키를 무시한다. `QuitDialogs`는 종료 확인·저장 실패 창이 열려 있을 때 중복 확인창을 띄우지 않으며, 재시도 실패 시 게임이 `quit_failed`를 직접 처리하면 `quit_dialog` pause를 해제한다. 장면 전환·포커스 상실·화면 미리보기 확인·종료 대화상자 표시 시 진행 중인 입력 캡처를 자동 취소한다.
+- 저장·복구: 원본 파일 없이 미완성 첫 쓰기 `.tmp`(빈 파일·불완전 값)만 남은 경우 Settings·InputManager도 쓰기를 차단하지 않고 새 사용자로 시작한다. 유효한 `.tmp` 복구 시에는 세 관리자 모두 먼저 rename으로 원본 경로에 무손실 승격한 뒤 필요할 때만(저장 migration 등) 새 `.tmp`를 기록하며, `Settings.reset_to_defaults()`·`InputManager.reset_bindings()`는 디스크 기록 실패 시 이전 상태와 `write_blocked`를 유지한다. SaveManager의 주기적 autosave 타이머는 `App.initialize()` 이후 시작한다.
+- 번역·언어: 새 사용자의 초기 언어를 `OS.get_locale()` 기준으로 등록된 번역과 비교해 지역·스크립트(`zh_TW` / `zh_CN` 등)까지 매칭하고, 미지원 OS 언어에서는 프로젝트 fallback 언어를 선택하여 설정 창의 언어 목록이 빈 상태(`-1`)가 되지 않게 했다. Deprecated 대상인 `get_translation_object()` 대신 `find_translations()`로 모든 번역 리소스를 순회한다.
+- 설정 패널·창 관리: SettingsPanel이 `Settings.changed`로 복수 패널과 외부 변경을 동기화하고, 커스텀 창 크기·FPS 항목은 단일 항목으로 교체하며, 음량 슬라이더 드래그 중에는 오디오 버스만 먼저 반영한 뒤 드래그 종료 시 디스크에 기록한다(`write_blocked` 상태에서도 드래그 종료 시 1회만 오류를 알린다). 캡처 실패 신호는 캡처를 시작한 패널만 내보낸다. WindowManager는 VSync·FPS만 바꿀 때 창 위치를 다시 중앙으로 옮기지 않고, 전체 화면 전환 뒤 이전 창 위치를 복원하며, 작업 표시줄 영역으로 클램핑한 크기가 저장된 `window_size`를 덮어쓰지 않는다.
+- 스토어(`StoreService`): 연속 업적·점수 제출이 `ERR_BUSY`로 탈락하지 않도록 FIFO 요청 대기열(`MAX_QUEUE_SIZE = 32`)로 직렬화하고 대기열 초과 시에만 `ERR_BUSY`를 내보낸다. `StoreService.user_id()` 위임 메서드를 추가했고, `mode = "native"`에서 등록한 검증된 `StoreAdapter`는 `steam` 외 배포 채널에서도 초기화할 수 있다.
+- 에디터 MCP(`Godot AI`): `hi-godot/godot-ai` 서명 릴리스 **4.4.2**(`addons/godot_ai/`, MIT, 순수 GDScript)를 포함해 기본 활성화하고(`editor_plugins/enabled`, `autoload/_mcp_game_helper`), 아홉 PC export preset 모두에서 `addons/godot_ai/*`를 제외했다(`GodotAIStripAutoload`로 배포 팩의 helper Autoload도 제거).
+- 도구·라이선스·검증: 루트 MIT `LICENSE` 추가 및 BOM 동기화, `GameConfig.ENGINE_VERSION` 단일 상수 참조 및 `.godot-version` 일치 검사, `configure.gd`의 기존 기본 action `deadzone` 갱신·필터 공백/중복 정리, `tools/validate.sh --gui` 옵션 및 알 수 없는 인수 검증 추가, GitHub Actions CI의 Godot 아카이브 공식 `SHA512-SUMS.txt` 검증·Xvfb GUI 검사·생성 산출물(`project.godot`, `export_presets.cfg`, `ui/i18n/`, `third_party/`) diff 검증, 공통 통합 검사(`tests/integration.gd`)의 파생 게임 설정 격리 및 `bootstrap_failure.gd` 임시 디렉터리 재귀 정리.
+
+기존 게임 적용:
+
+- `AudioManager.set_suspended(suspended, include_ui = true)`는 기본 호출 시 기존처럼 `UI`까지 모두 정지하고, `App`의 메뉴·오버레이 pause만 `include_ui = false`를 전달한다. 이미 재생·일시 정지 중인 같은 BGM을 처음부터 다시 재생하려면 `AudioManager.play_bgm(stream, true)`를 호출한다.
+- 기존 `user://input.cfg`에 물리 키코드와 논리 키코드가 함께 저장되어 있던 키 바인딩은 불러올 때 물리 키 기준으로 정규화된다. 공통 UI 번역(`ui/i18n/ui.csv`)을 수정해 쓰는 게임은 `UI_CLEAR_SECONDARY_KEYBOARD`·`UI_CLEAR_SECONDARY_CONTROLLER` 키를 함께 반영한다.
+- 새 사용자의 `Settings.defaults().language`는 미지원 OS 언어 코드를 그대로 남기지 않고 등록된 번역 또는 프로젝트 fallback 언어로 결정된다.
+- `StoreService`에 동시에 여러 요청을 보낼 때 즉시 `ERR_BUSY`를 기대하던 코드는 최대 32건까지 순차 실행됨을 전제로 맞춘다.
+
 ## 미출시 — 점검 보완 (2026-11-04)
 
 - 저장: Windows의 rename(원본 삭제 후 이동)이 중단되어 `.tmp`만 남은 경우 SaveManager·Settings·InputManager가 그 내용을 복구한다. SaveManager는 복구한 진행을 원본 경로에 다시 저장한다. 이전에는 새 게임으로 시작하여 진행이 사라질 수 있었다.

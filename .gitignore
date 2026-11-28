@@ -17,3 +17,5 @@ steam_appid.txt
 .env
 .env.*
 !.env.example
+addons/.godot_ai_update/
+mcp-server.log

@@ -31,6 +31,7 @@ rsync -a --ignore-existing --exclude .git --exclude .godot --exclude build --exc
 | 파일 / 경로 | 처리 |
 | --- | --- |
 | `autoload/`, `core/`, `services/`, `tools/` | 공통 프레임워크로 유지 |
+| `addons/godot_ai/` | 기본 활성화된 에디터 MCP 플러그인(export 제외). 버전 업그레이드는 파일을 덮어쓰지 않고 에디터 **Godot AI** 독의 **Update**를 사용한다 |
 | `ui/` (`menus`, `dialogs`, `settings`, `loading`, `theme`, `i18n`) | 공통 UI로 유지. Theme과 `ui/i18n/ui.csv`의 문구·언어 열은 게임에 맞게 수정해도 된다 |
 | `scenes/bootstrap.*` | 진입점으로 유지; 게임 초기화는 hook에서 |
 | `scenes/main.tscn`, `scenes/demo.gd`, `scenes/transition_demo.*`, `assets/demo/` | 예제·회귀 검사용으로 유지; 배포에서는 `exclude_demo=true`로 제외 |
@@ -72,14 +73,14 @@ tag <tag or none>, commit <git rev-parse HEAD 결과>, applied <YYYY-MM-DD>.
 
 ## 5. 검증
 
-[코드 안내서의 변경 후 검증](../CODEBASE_MAP.md#변경-후-검증)을 실행하고, F5로 게임의 `main_scene`과 init hook 진입을 확인한다. 공통 검사는 데모와 기본 logical ID를 사용하므로, 게임 config를 바꿨다면 그 가정에 맞춘 게임용 검사를 따로 준비한다.
+[코드 안내서의 변경 후 검증](../CODEBASE_MAP.md#변경-후-검증)을 실행하고, F5로 게임의 `main_scene`과 init hook 진입을 확인한다. 공통 검사는 `init_script`의 계약 통과 여부를 확인한 뒤 자체 기준값으로 프레임워크 계약을 검증하므로, 게임 `config/game.cfg`와 `game/game_init.gd`를 바꾼 뒤에도 `scenes/`와 `assets/demo/`를 유지하면 그대로 실행할 수 있다. 게임 고유 규칙·ID 검사는 별도로 추가한다.
 
 Windows/macOS export·서명·실행·스토어 기능의 실제 결과는 게임의 `docs/VALIDATION.md` 등에 기록한다. 템플릿의 검증 결과를 게임의 실행 파일 검증으로 재사용하지 않는다.
 
 ## 템플릿 버전 업데이트
 
 1. 현재 버전과 목표 버전 사이의 [CHANGELOG](CHANGELOG.md)를 읽는다. "기존 게임 적용" 항목의 변경을 확인한다.
-2. 템플릿 저장소에서 두 tag/commit을 비교하여 공통 파일 변경만 확인한다(`git diff <old> <new> -- autoload core services ui tools scenes tests`).
+2. 템플릿 저장소에서 두 tag/commit을 비교하여 공통 파일 변경만 확인한다(`git diff <old> <new> -- addons/godot_ai autoload core services ui tools scenes tests`).
 3. 게임의 `game/`, 게임 config, 사용자 데이터와 게임 문서를 보존하며 프레임워크 변경을 병합한다. config에는 새 키만 추가한다.
 4. configure와 영향받는 공통·게임 검사를 실행한다.
 5. 출처의 버전·tag·commit·적용일을 갱신한다.

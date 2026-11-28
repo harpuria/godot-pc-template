@@ -49,7 +49,7 @@ if Input.is_action_just_pressed("interact"):
 var movement := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 ```
 
-등록한 action은 설정 화면(`SettingsPanel`)의 Action 목록에 나타나고, 장치 종류(키보드·마우스 / 게임패드)마다 주 입력·보조 입력 두 칸을 바꿀 수 있다. 사용자 바인딩은 `user://input.cfg`에 저장된다.
+등록한 action은 설정 화면(`SettingsPanel`)의 Action 목록에 나타나고, 장치 종류(키보드·마우스 / 게임패드)마다 주 입력·보조 입력 두 칸을 바꿀 수 있으며 보조 입력은 비울 수 있다(`InputManager.clear_slot()`). 사용자 바인딩은 `user://input.cfg`에 저장된다.
 
 ## pause 메뉴와 종료 처리
 
@@ -110,7 +110,7 @@ Settings.changed.connect(func(key: String, value: Variant): ...)
 ## 소리 재생하기
 
 ```gdscript
-AudioManager.play_bgm(preload("res://game/audio/theme.ogg"))  # 반복은 리소스의 loop 설정
+AudioManager.play_bgm(preload("res://game/audio/theme.ogg"))         # 이미 같은 곡이 재생 중이면 이어서 재생(처음부터 다시 틀려면 두 번째 인자에 true)
 AudioManager.play_sfx(preload("res://game/audio/hit.wav"))
 AudioManager.play_ui(preload("res://game/audio/click.wav"))
 ```
@@ -142,7 +142,7 @@ MENU_START,Start,시작
 
 2. Godot이 CSV를 import하면 `text.en.translation`, `text.ko.translation`이 생긴다. **Project Settings → Localization → Translations**에 추가한다.
 3. 코드에서는 `tr("MENU_START")`, 장면의 Label·Button은 text에 키(`MENU_START`)를 그대로 쓴다.
-4. 언어 변경은 `Settings.set_setting("language", "ko")`다. 다음 실행에도 유지된다. 새 사용자의 기본값은 OS 언어(`OS.get_locale_language()`)이며, 번역이 없는 언어는 Project Settings의 fallback locale로 표시된다.
+4. 언어 변경은 `Settings.set_setting("language", "ko")`다. 다음 실행에도 유지된다. 새 사용자의 기본값은 OS 로케일(`OS.get_locale()`)과 가장 잘 맞는 등록된 번역이며, 일치하는 번역이 없으면 Project Settings의 fallback locale이 선택된다.
 
 공통 UI(pause 메뉴·설정 화면·대화상자·화면 확인창)는 `ui/i18n/ui.csv`에 English / 한국어가 이미 있다. 설정 화면의 **Language(언어)** 목록은 불러온 번역에서 자동으로 만들어진다.
 

@@ -1,46 +1,72 @@
 #!/usr/bin/env bash
-# 공통 회귀 검사: import, 통합 검사 3종(기본·disabled·native), 초기화 실패 차단 2종.
-# 사용법: tools/validate.sh            (PATH의 godot 사용)
-#         GODOT=/path/to/Godot tools/validate.sh
+# 공통 회귀 검사: import, 통합 검사 3종(기본·disabled·native), 초기화 실패 차단 2종, 선택적 GUI(--gui) 검사.
+# 사용법: tools/validate.sh [--gui]            (PATH의 godot 사용)
+#         GODOT=/path/to/Godot tools/validate.sh [--gui]
 # 로그는 build/validation_logs/에 남는다. Godot은 스크립트 오류 뒤에도 exit 0일 수 있어 로그도 검사한다.
-set -u
+set -uo pipefail
 cd "$(dirname "$0")/.."
 
 GODOT="${GODOT:-godot}"
 LOG_DIR="${LOG_DIR:-build/validation_logs}"
+RUN_GUI=0
+if [ "$#" -gt 1 ]; then
+	echo "Usage: $0 [--gui]"
+	exit 2
+fi
+case "${1:-}" in
+	"") ;;
+	--gui) RUN_GUI=1 ;;
+	*) echo "Usage: $0 [--gui]"; exit 2 ;;
+esac
+if [ ! -f .godot-version ]; then
+	echo "FAIL: .godot-version is missing."
+	exit 1
+fi
 EXPECTED_VERSION="$(tr -d '[:space:]' < .godot-version)"
+if [ -z "$EXPECTED_VERSION" ]; then
+	echo "FAIL: .godot-version is empty."
+	exit 1
+fi
 ERROR_PATTERN='SCRIPT ERROR|Parse Error|ERROR:|leaked|still in use'
 failures=0
 mkdir -p "$LOG_DIR"
 
-version="$("$GODOT" --version 2>/dev/null | head -n 1)"
+version="$("$GODOT" --version 2>/dev/null | head -n 1 || true)"
 case "$version" in
 	"$EXPECTED_VERSION".stable*) echo "Godot $version" ;;
 	*) echo "FAIL: Godot $EXPECTED_VERSION is required (found: ${version:-none}). Set GODOT=/path/to/Godot."; exit 1 ;;
 esac
 
-# check <이름> <로그에 있어야 할 문구> <허용할 오류 패턴> <Godot 인수...>
-check() {
+# run_check <이름> <로그에 있어야 할 문구> <허용할 오류 패턴> <Godot 인수...>
+run_check() {
 	local name="$1" expected="$2" allowed="$3"
 	shift 3
 	local log="$LOG_DIR/$name.log"
-	"$GODOT" --headless --path . "$@" > "$log" 2>&1
-	local code=$?
+	local code=0
+	"$GODOT" --path . "$@" > "$log" 2>&1 || code=$?
 	local problems=""
 	[ "$code" -eq 0 ] || problems="$problems exit-code-$code;"
 	if [ -n "$expected" ] && ! grep -qF -- "$expected" "$log"; then
 		problems="$problems missing '$expected';"
 	fi
 	local unexpected
-	unexpected="$(grep -E "$ERROR_PATTERN" "$log" | grep -vE "${allowed:-^$}")"
+	unexpected="$({ grep -E "$ERROR_PATTERN" "$log" || true; } | { grep -vE "${allowed:-^$}" || true; })"
 	[ -z "$unexpected" ] || problems="$problems unexpected errors;"
 	if [ -z "$problems" ]; then
-		echo "PASS $name $(grep -oE 'INTEGRATION: .*|BOOTSTRAP_FAILURE: .*' "$log" | head -n 1)"
+		local summary
+		summary="$({ grep -oE 'INTEGRATION: .*|BOOTSTRAP_FAILURE: .*' "$log" || true; } | head -n 1)"
+		echo "PASS $name $summary"
 	else
 		failures=$((failures + 1))
 		echo "FAIL $name:$problems (log: $log)"
 		[ -z "$unexpected" ] || echo "$unexpected" | head -n 20
 	fi
+}
+
+check() {
+	local name="$1" expected="$2" allowed="$3"
+	shift 3
+	run_check "$name" "$expected" "$allowed" --headless "$@"
 }
 
 check import "" "" --editor --import --quit
@@ -52,6 +78,9 @@ check bootstrap-failure "entry_blocked=true message_shown=true" "Game init scrip
 	--scene res://tests/bootstrap_failure.tscn
 check bootstrap-runtime-error "entry_blocked=true message_shown=true" "Game init script failed|deliberate_init_failure" \
 	--scene res://tests/bootstrap_failure.tscn -- --runtime-error
+if [ "$RUN_GUI" -eq 1 ]; then
+	run_check gui-integration "checks, 0 failures" "" --audio-driver Dummy --scene res://tests/integration.tscn
+fi
 
 if [ "$failures" -ne 0 ]; then
 	echo "VALIDATION: $failures check(s) failed"

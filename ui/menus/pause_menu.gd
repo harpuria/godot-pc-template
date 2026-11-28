@@ -44,6 +44,7 @@ func _ready() -> void:
 		_button(layout, "UI_QUIT", App.dialogs.confirm_quit)
 	_settings_scroll.custom_minimum_size = Vector2(520, 360)
 	_settings_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_settings_scroll.follow_focus = true
 	_settings_scroll.visible = false
 	layout.add_child(_settings_scroll)
 	var settings := SettingsPanel.new()
@@ -73,13 +74,20 @@ func is_open() -> bool:
 	return _open
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not handle_pause_action or not InputManager.capturing.is_empty() or App.dialogs.is_open() or WindowManager.previewing:
+	if not handle_pause_action or SceneManager.transitioning or not InputManager.capturing.is_empty() \
+			or App.dialogs.is_open() or WindowManager.previewing:
 		return
 	if event.is_action_pressed("pause") and not event.is_echo():
 		if _open and _settings_scroll.visible:
 			_toggle_settings()
 		else:
 			toggle()
+		get_viewport().set_input_as_handled()
+	elif _open and event.is_action_pressed("ui_cancel") and not event.is_echo():
+		if _settings_scroll.visible:
+			_toggle_settings()
+		else:
+			close()
 		get_viewport().set_input_as_handled()
 
 func _button(parent: Control, text: String, callback: Callable) -> Button:
@@ -110,3 +118,8 @@ func _sync(active: bool) -> void:
 		opened.emit()
 	else:
 		closed.emit()
+
+func _exit_tree() -> void:
+	if _open and is_instance_valid(App) and App.is_inside_tree():
+		_open = false
+		App.set_paused(PAUSE_REASON, false)

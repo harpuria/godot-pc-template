@@ -25,6 +25,7 @@ var _stored: Dictionary = {}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_ensure_ui_gamepad_defaults()
 	var baseline := DefaultInput.actions()
 	for action in COMMON_ACTIONS:
 		_add_action(action, baseline[action])
@@ -57,11 +58,14 @@ func register_action(action: StringName, defaults: Array = []) -> Error:
 func load_bindings() -> Error:
 	var file := ConfigFile.new()
 	var error := file.load(storage_path)
+	var recovered_temp := false
 	if error == ERR_FILE_NOT_FOUND:
-		# Windows에서 교체가 중단되어 완성된 .tmp만 남은 경우 그 내용을 사용한다.
-		if not FileAccess.file_exists(storage_path + ".tmp") or file.load(storage_path + ".tmp") != OK:
+		# Windows에서 교체가 중단되어 완성된 .tmp만 남은 경우에만 복구하고, 미완성 첫 쓰기 .tmp는 새 사용자로 시작한다.
+		if not FileAccess.file_exists(storage_path + ".tmp") or file.load(storage_path + ".tmp") != OK \
+				or not file.has_section("bindings") or file.get_section_keys("bindings").is_empty():
 			write_blocked = false
 			return OK
+		recovered_temp = true
 		error = OK
 	if error != OK or not file.has_section("bindings"):
 		return _load_error(error if error != OK else ERR_INVALID_DATA)
@@ -69,11 +73,17 @@ func load_bindings() -> Error:
 	for key in file.get_section_keys("bindings"):
 		var raw: Variant = file.get_value("bindings", key)
 		if not raw is Array or raw.is_empty():
+			if recovered_temp:
+				write_blocked = false
+				return OK
 			return _load_error(ERR_INVALID_DATA)
 		var events: Array[InputEvent] = []
 		for item in raw:
 			var event := decode_event(item)
 			if event == null:
+				if recovered_temp:
+					write_blocked = false
+					return OK
 				return _load_error(ERR_INVALID_DATA)
 			events.append(event)
 		staged[StringName(key)] = events
@@ -84,6 +94,10 @@ func load_bindings() -> Error:
 		else:
 			_stored[action] = staged[action]
 	write_blocked = false
+	if recovered_temp:
+		push_warning("Bindings restored from an interrupted replace: %s.tmp" % storage_path)
+		if DirAccess.rename_absolute(storage_path + ".tmp", storage_path) != OK:
+			save_bindings()
 	return OK
 
 ## 다음 입력을 지정 action의 slot 칸에 할당한다. 수정키 단독 입력은 기다리고 Escape는 취소한다.
@@ -109,7 +123,7 @@ func cancel_capture() -> void:
 func rebind(action: StringName, event: InputEvent, slot: int = 0) -> Error:
 	if not action in _actions or slot < 0 or slot >= SLOTS or event == null or encode_event(event).is_empty():
 		return ERR_INVALID_PARAMETER
-	if event is InputEventKey and (event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE) and action != &"pause":
+	if _is_escape(event) and (action != &"pause" or _has_modifiers(event as InputEventKey)):
 		return ERR_INVALID_PARAMETER
 	var normalized := decode_event(encode_event(event))
 	if normalized == null:
@@ -141,15 +155,54 @@ func rebind(action: StringName, event: InputEvent, slot: int = 0) -> Error:
 	bindings_changed.emit(action)
 	return OK
 
-## 확인된 복구 또는 사용자 요청 후 프로젝트의 기본 바인딩으로 되돌린다.
+## 지정 장치 종류의 slot번째 바인딩을 비운다. action의 마지막 남은 입력이나 pause의 유일한 키보드 입력은 지우지 않는다.
+func clear_slot(action: StringName, category: String, slot: int = 1) -> Error:
+	if not action in _actions or not category in CATEGORIES or slot < 0 or slot >= SLOTS:
+		return ERR_INVALID_PARAMETER
+	var current_category := slot_events(action, category)
+	if slot >= current_category.size():
+		return OK
+	if action == &"pause" and category == "keyboard_mouse" and current_category.size() <= 1:
+		return ERR_INVALID_PARAMETER
+	var before := InputMap.action_get_events(action)
+	var after: Array[InputEvent] = []
+	var index := 0
+	for existing in before:
+		if _category(existing) == category:
+			if index != slot:
+				after.append(existing)
+			index += 1
+		else:
+			after.append(existing)
+	if after.is_empty():
+		return ERR_INVALID_PARAMETER
+	_apply_events(action, after)
+	var error := save_bindings()
+	if error != OK:
+		_apply_events(action, before)
+		return error
+	bindings_changed.emit(action)
+	return OK
+
+## 확인된 복구 또는 사용자 요청 후 프로젝트의 기본 바인딩으로 되돌린다. 저장 실패 시 이전 상태를 유지한다.
 func reset_bindings() -> Error:
+	var previous_events: Dictionary = {}
 	for action in _actions:
+		previous_events[action] = InputMap.action_get_events(action)
 		_apply_events(action, _defaults[action])
+	var previous_stored := _stored.duplicate(true)
+	var was_blocked := write_blocked
 	_stored.clear()
 	write_blocked = false
 	var error := save_bindings()
+	if error != OK:
+		for action in _actions:
+			_apply_events(action, previous_events[action])
+		_stored = previous_stored
+		write_blocked = was_blocked
+		return error
 	bindings_changed.emit(&"")
-	return error
+	return OK
 
 ## 객체 대신 입력 종류와 숫자 필드만 저장한다.
 func save_bindings() -> Error:
@@ -194,26 +247,34 @@ func binding_text(action: StringName) -> String:
 		descriptions.append(event_text(event))
 	return " / ".join(descriptions)
 
-## 입력 이벤트를 짧은 표시 이름으로 바꾼다.
+## 입력 이벤트를 짧은 표시 이름으로 바꾼다. 창이 있으면 물리 키를 현재 키보드 배열 글자로 표시한다.
 static func event_text(event: InputEvent) -> String:
-	if event is InputEventKey and event.physical_keycode != 0:
-		return OS.get_keycode_string(event.get_physical_keycode_with_modifiers())
+	if event is InputEventKey:
+		if event.physical_keycode != 0:
+			var mapped: Key = DisplayServer.keyboard_get_keycode_from_physical(event.physical_keycode) \
+				if DesktopPlatform.has_window() else KEY_NONE
+			var display_key: Key = mapped if mapped != KEY_NONE else event.physical_keycode
+			return OS.get_keycode_string((int(display_key) | int(event.get_modifiers_mask())) as Key)
+		if event.keycode != 0:
+			return OS.get_keycode_string(event.get_keycode_with_modifiers())
 	if event is InputEventJoypadMotion:
 		var axis_name := str(TranslationServer.translate(_AXIS_NAMES[event.axis])) if event.axis < _AXIS_NAMES.size() \
 			else str(TranslationServer.translate("UI_AXIS_OTHER")) % event.axis
 		return "%s %s" % [axis_name, "+" if event.axis_value > 0.0 else "-"]
 	return event.as_text()
 
-## 지원하는 이벤트를 설정 파일용 Dictionary로 변환한다.
+## 지원하는 이벤트를 설정 파일용 Dictionary로 변환한다. 물리 키코드가 있으면 물리 위치를 기준으로 저장한다.
 static func encode_event(event: InputEvent) -> Dictionary:
-	if event is InputEventKey and (event.physical_keycode != 0 or event.keycode != 0):
-		return {"type": "key", "physical": event.physical_keycode, "key": event.keycode,
+	if event is InputEventKey and (event.physical_keycode > 0 or event.keycode > 0):
+		var physical := int(event.physical_keycode) if event.physical_keycode > 0 else 0
+		var keycode := 0 if physical > 0 else int(event.keycode)
+		return {"type": "key", "physical": physical, "key": keycode,
 			"shift": event.shift_pressed, "alt": event.alt_pressed, "ctrl": event.ctrl_pressed, "meta": event.meta_pressed}
-	if event is InputEventMouseButton and event.button_index > 0:
+	if event is InputEventMouseButton and event.button_index >= 1 and event.button_index <= 9:
 		return {"type": "mouse", "button": event.button_index}
-	if event is InputEventJoypadButton:
+	if event is InputEventJoypadButton and event.button_index >= 0 and event.button_index < JOY_BUTTON_MAX:
 		return {"type": "joy_button", "button": event.button_index}
-	if event is InputEventJoypadMotion and absf(event.axis_value) >= 0.8:
+	if event is InputEventJoypadMotion and event.axis >= 0 and event.axis < JOY_AXIS_MAX and absf(event.axis_value) >= 0.8:
 		return {"type": "joy_axis", "axis": event.axis, "value": signf(event.axis_value)}
 	return {}
 
@@ -229,11 +290,13 @@ static func decode_event(raw: Variant) -> InputEvent:
 			for key in ["shift", "alt", "ctrl", "meta"]:
 				if raw.has(key) and not raw[key] is bool:
 					return null
-			var event := InputEventKey.new()
-			event.physical_keycode = int(raw.get("physical", 0))
-			event.keycode = int(raw.get("key", 0))
-			if event.physical_keycode == 0 and event.keycode == 0:
+			var physical := int(raw.get("physical", 0))
+			var keycode := int(raw.get("key", 0))
+			if physical == 0 and keycode == 0:
 				return null
+			var event := InputEventKey.new()
+			event.physical_keycode = physical as Key
+			event.keycode = (0 if physical != 0 else keycode) as Key
 			event.shift_pressed = raw.get("shift", false)
 			event.alt_pressed = raw.get("alt", false)
 			event.ctrl_pressed = raw.get("ctrl", false)
@@ -268,10 +331,15 @@ func _input(event: InputEvent) -> void:
 				or event.physical_keycode in [KEY_CTRL, KEY_SHIFT, KEY_ALT, KEY_META]):
 			get_viewport().set_input_as_handled()
 			return
-		if event is InputEventKey and event.pressed and (event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE):
-			cancel_capture()
-			get_viewport().set_input_as_handled()
-		elif _pressed_binding(event):
+		if _is_escape(event):
+			if not event.is_pressed() or event.is_echo():
+				get_viewport().set_input_as_handled()
+				return
+			if capturing != &"pause" or _has_modifiers(event as InputEventKey) or not _can_capture_escape(capture_slot):
+				cancel_capture()
+				get_viewport().set_input_as_handled()
+				return
+		if _pressed_binding(event):
 			var action := capturing
 			capturing = &""
 			var error := rebind(action, event, capture_slot)
@@ -283,12 +351,40 @@ func _input(event: InputEvent) -> void:
 		active_device = device
 		device_changed.emit(active_device)
 
+func _can_capture_escape(slot: int) -> bool:
+	for other in _actions:
+		var used := slot_events(other, "keyboard_mouse")
+		for index in used.size():
+			if not (other == &"pause" and index == slot) and _is_escape(used[index]):
+				return false
+	return true
+
+static func _is_escape(event: InputEvent) -> bool:
+	return event is InputEventKey and (event.keycode == KEY_ESCAPE or event.physical_keycode == KEY_ESCAPE)
+
+static func _has_modifiers(event: InputEventKey) -> bool:
+	return event.shift_pressed or event.alt_pressed or event.ctrl_pressed or event.meta_pressed
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not capturing.is_empty():
 		return
 	if event.is_action_pressed("toggle_fullscreen") and not event.is_echo():
 		WindowManager.toggle_fullscreen()
 		get_viewport().set_input_as_handled()
+
+func _ensure_ui_gamepad_defaults() -> void:
+	for pair in [[&"ui_accept", JOY_BUTTON_A], [&"ui_cancel", JOY_BUTTON_B]]:
+		var action: StringName = pair[0]
+		var joy_button: JoyButton = pair[1]
+		if not InputMap.has_action(action):
+			continue
+		var exists := false
+		for event in InputMap.action_get_events(action):
+			if event is InputEventJoypadButton and event.button_index == joy_button:
+				exists = true
+				break
+		if not exists:
+			InputMap.action_add_event(action, DefaultInput.button(joy_button))
 
 func _add_action(action: StringName, fallback: Array) -> void:
 	if not InputMap.has_action(action):

@@ -12,6 +12,10 @@ var _candidate: Dictionary = {}
 var _preview_timer := Timer.new()
 var _resize_timer := Timer.new()
 var _confirmation := ConfirmationDialog.new()
+var _applied_window_size := Vector2i.ZERO
+var _last_requested_size := Vector2i.ZERO
+var _windowed_position := Vector2i.ZERO
+var _has_windowed_position := false
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -58,6 +62,7 @@ func preview_options(updates: Dictionary, seconds: float = 15.0) -> Error:
 		options[key] = updates[key]
 	if not _valid_options(options) or not is_finite(seconds) or seconds < 1.0:
 		return ERR_INVALID_PARAMETER
+	InputManager.cancel_capture()
 	_previous = current_options()
 	_candidate = options
 	previewing = true
@@ -124,25 +129,58 @@ func _apply(options: Dictionary) -> void:
 		var modes := {"windowed": DisplayServer.WINDOW_MODE_WINDOWED,
 			"borderless": DisplayServer.WINDOW_MODE_FULLSCREEN,
 			"fullscreen": DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN}
-		DisplayServer.window_set_mode(modes.get(options.window_mode, DisplayServer.WINDOW_MODE_WINDOWED))
+		var target_mode: DisplayServer.WindowMode = modes.get(options.window_mode, DisplayServer.WINDOW_MODE_WINDOWED)
+		var current_mode := DisplayServer.window_get_mode()
+		if current_mode == DisplayServer.WINDOW_MODE_WINDOWED and target_mode != DisplayServer.WINDOW_MODE_WINDOWED:
+			_windowed_position = DisplayServer.window_get_position()
+			_has_windowed_position = true
+		var mode_changed := current_mode != target_mode
+		if mode_changed:
+			DisplayServer.window_set_mode(target_mode)
 		if options.window_mode == "windowed":
 			var minimum := Vector2i(GameConfig.value("display", "minimum_width", 960), GameConfig.value("display", "minimum_height", 540))
 			var usable := DisplayServer.screen_get_usable_rect()
-			var size: Vector2i = options.window_size
-			size = Vector2i(maxi(minimum.x, size.x), maxi(minimum.y, size.y))
+			var requested: Vector2i = options.window_size
+			var size := Vector2i(maxi(minimum.x, requested.x), maxi(minimum.y, requested.y))
 			size = Vector2i(mini(size.x, usable.size.x), mini(size.y, usable.size.y))
-			DisplayServer.window_set_size(size)
-			DisplayServer.window_set_position(usable.position + (usable.size - size) / 2)
+			var requested_changed := requested != _last_requested_size
+			var size_changed := DisplayServer.window_get_size() != size
+			_applied_window_size = size
+			_last_requested_size = requested
+			_resize_timer.stop()
+			if mode_changed or requested_changed or size_changed:
+				DisplayServer.window_set_size(size)
+				if not requested_changed and mode_changed and _has_windowed_position:
+					DisplayServer.window_set_position(_clamp_window_position(_windowed_position, size, usable))
+				else:
+					var centered := usable.position + (usable.size - size) / 2
+					DisplayServer.window_set_position(centered)
+					_windowed_position = centered
+					_has_windowed_position = true
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if options.vsync else DisplayServer.VSYNC_DISABLED)
 	options_applied.emit(options.duplicate())
 
+func _clamp_window_position(pos: Vector2i, size: Vector2i, usable: Rect2i) -> Vector2i:
+	var max_x := maxi(usable.position.x, usable.position.x + usable.size.x - size.x)
+	var max_y := maxi(usable.position.y, usable.position.y + usable.size.y - size.y)
+	return Vector2i(clampi(pos.x, usable.position.x, max_x), clampi(pos.y, usable.position.y, max_y))
+
 func _on_resize() -> void:
-	if not previewing and DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_WINDOWED:
-		_resize_timer.start()
+	if previewing or DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
+		return
+	if DisplayServer.window_get_size() == _applied_window_size:
+		return
+	_resize_timer.start()
 
 func _remember_window_size() -> void:
-	if not previewing and DesktopPlatform.has_window() and DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_WINDOWED:
-		Settings.set_setting("window_size", DisplayServer.window_get_size())
+	if previewing or not DesktopPlatform.has_window() or DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_WINDOWED:
+		return
+	var actual := DisplayServer.window_get_size()
+	if actual == _applied_window_size or actual == Settings.get_setting("window_size"):
+		return
+	_applied_window_size = actual
+	_last_requested_size = actual
+	Settings.set_setting("window_size", actual)
 
 func _process(_delta: float) -> void:
 	if previewing:

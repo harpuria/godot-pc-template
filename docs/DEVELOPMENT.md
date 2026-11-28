@@ -6,12 +6,13 @@
 
 - Godot **4.7.2 Standard**(내장 GDScript). 확인한 빌드: `4.7.2.stable.official.ed1daf0bf`.
 - 실행 파일을 만들려면 같은 **4.7.2** export templates.
-- 외부 addon, Python, C#/.NET, Steam SDK 없이 Editor와 데모가 실행된다.
+- 외부 런타임 addon, C#/.NET, Steam SDK 없이 Editor와 데모가 실행된다. 기본 활성화된 **Godot AI**(`addons/godot_ai`, v4.4.2) 독으로 외부 AI(MCP) 클라이언트를 연결할 때만 [uv](https://docs.astral.sh/uv/)가 필요하다(`uv` 없이도 Editor·테스트·export는 그대로 동작한다).
 - 명령의 `godot`는 PATH의 Godot 실행 파일이다. macOS 기본 경로는 `/Applications/Godot.app/Contents/MacOS/Godot`다.
 
 ## 폴더 구조
 
 ```text
+addons/godot_ai/       기본 활성화된 Godot AI MCP 에디터 플러그인 (export에서는 자동 제외)
 autoload/              앱 수명의 공통 관리자 8개 (GameConfig, Settings, SaveManager, AudioManager,
                        WindowManager, InputManager, SceneManager, App)
 core/                  입력 기본값, OS·저장 위치, JSON 저장, Debug 로그
@@ -33,7 +34,7 @@ third_party/           엔진·제3자 배포 고지
 docs/                  가이드와 참고 문서
 docs/template/         템플릿 적용·이력·구현·검증 기록
 docs/distribution/     SteamPipe 업로드 예시
-.github/workflows/     CI (tools/validate.sh를 Linux headless Godot으로 실행)
+.github/workflows/     CI (tools/validate.sh --gui로 Linux headless·Xvfb GUI 회귀 및 리소스 일관성 검사)
 build/                 로컬 export 결과 (Git 제외)
 ```
 
@@ -59,7 +60,7 @@ build/                 로컬 export 결과 (Git 제외)
 | `app` | main_scene, init_script | 다시 실행 |
 | `display` | viewport/window/minimum 크기 | configure; 사용자 설정이 기본값보다 우선 |
 | `display` | default_mode, default_vsync, default_max_fps | 새 사용자의 기본값 |
-| `input` | controller_deadzone | 다시 실행; 0.05~0.95 |
+| `input` | controller_deadzone | configure 또는 다시 실행; 0.05~0.95 |
 | `export` | extra_include_filter, extra_exclude_filter, exclude_demo, steam_only_filter | configure 후 export |
 | `lifecycle` | pause_on_focus_loss, mute_on_focus_loss | 다시 실행 |
 | `save` | autosave_seconds | 다시 실행; 최소 1초 |
@@ -80,7 +81,7 @@ godot --headless --path . --editor --import --quit
 godot --headless --path . --script res://tools/configure.gd
 ```
 
-configure는 앱 정보, 화면 크기, 없는 기본 action, 공통 UI 번역 등록과 export preset 0~8번(Windows·macOS·Linux × Standalone·Itch·Steam)을 갱신하고 `build/` 출력 폴더를 만든다. 이미 있는 Input Map, 추가 custom feature, 서명·아이콘 같은 preset 옵션은 유지한다. 직접 만든 preset은 9번 이후에 두며, 0~8번 자리에 다른 이름의 preset이 있으면 덮어쓰지 않고 실패한다.
+configure는 앱 정보, 화면 크기, 기본 action(및 기존 기본 action의 deadzone), 공통 UI 번역 등록과 export preset 0~8번(Windows·macOS·Linux × Standalone·Itch·Steam)을 갱신하고 `build/` 출력 폴더를 만든다. 이미 있는 Input Map의 바인딩, 추가 custom feature, 서명·아이콘 같은 preset 옵션은 유지한다. 직접 만든 preset은 9번 이후에 두며, 0~8번 자리에 다른 이름의 preset이 있으면 덮어쓰지 않고 실패한다.
 
 ## 사용자 데이터 파일
 

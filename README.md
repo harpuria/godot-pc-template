@@ -17,7 +17,7 @@ PC 게임을 시작할 때 쓰는 공통 프로젝트다. 저장, 설정, 오디
 2. Godot에서 **Import**를 누르고 이 폴더의 `project.godot`를 선택한다.
 3. **F5**를 누른다. `PC TEMPLATE` 화면이 나오면 준비가 끝났다.
 
-Steam 클라이언트나 외부 플러그인은 필요하지 않다.
+Steam 클라이언트나 외부 런타임 플러그인은 필요하지 않다. 에디터용 MCP 플러그인 **Godot AI**(`addons/godot_ai`, v4.4.2)가 기본 활성화되어 있으므로, Claude Code·Cursor·Codex·Antigravity 등 AI 클라이언트를 에디터에 연결할 때만 [uv](https://docs.astral.sh/uv/getting-started/installation/)를 설치하고 에디터의 **Godot AI** 독에서 **Configure**를 누른다(`uv`가 없어도 에디터·게임 실행에는 지장 없다).
 
 ## 2. 공통 기능 눌러 보기
 
@@ -31,14 +31,14 @@ Steam 클라이언트나 외부 플러그인은 필요하지 않다.
 | 화면 변경 | 모드·크기·VSync·FPS 선택 → `Preview display settings`(화면 설정 미리보기) | `Keep settings`(유지)로 저장; 15초 안에 확인하지 않으면 복구 |
 | 전체 화면 단축키 | `F11` 또는 `Alt+Enter` | 창 / 테두리 없는 전체 화면을 확인창 없이 바로 전환하고 저장 |
 | 언어 | 설정의 `Language`(언어) 선택 | pause 메뉴·설정·대화상자 문구가 English / 한국어로 바로 바뀐다. 처음 실행은 OS 언어 |
-| 입력 변경 | 오른쪽 Action 선택 → `Rebind primary` / `Rebind secondary` → 키·마우스·게임패드 입력 | 누른 장치 종류의 해당 칸만 교체; `Esc`로 취소 |
+| 입력 변경 | 오른쪽 Action 선택 → `Rebind primary` / `Rebind secondary` / 보조 비우기(`key/mouse` · `controller`) | 누른 장치 종류의 해당 칸만 교체하거나 장치별 보조 칸 해제; `Esc`로 취소 |
 | 입력 복구 | `Restore default controls` | 기본 바인딩으로 돌아간다 |
 | pause 메뉴 | `Esc`, 게임패드 Start 또는 `Open pause menu` | 게임이 멈추고 계속하기·설정·종료 메뉴가 열린다 |
 | 종료 | `Quit` 또는 창 닫기(X) | 저장 후 종료를 확인한다. 저장 실패 시 머무르기·재시도·저장 없이 종료 선택 |
 | 장면 이동 | `Scene transition` → `Back to demo` | 저장·설정·오디오 관리자가 유지된다 |
 | 업적·점수 연습 | `Unlock demo achievement`, `Submit demo score` | Debug에서 `mock=true` 결과를 받는다 |
 
-기본 입력은 WASD/방향키/왼쪽 스틱 이동, Space/마우스 왼쪽/게임패드 A 주 행동이다. UI 버튼은 방향키·Tab·게임패드로 탐색한다.
+기본 입력은 WASD/방향키/왼쪽 스틱 이동, Space/마우스 왼쪽/게임패드 A 주 행동이다. UI 버튼·목록·대화상자는 방향키·Tab·게임패드(D-pad/스틱, A 선택, B 취소)로 탐색한다.
 
 ## 3. 내 게임 시작하기
 
@@ -101,8 +101,9 @@ Windows는 x86_64 `.exe`와 `.pck`, macOS는 Intel/Apple Silicon 공용 Universa
 | 구성 | 버전 / 상태 |
 | --- | --- |
 | Godot / 내장 GDScript | **4.7.2** 고정, MIT |
-| PC 템플릿 | **0.1.0**, 자체 GDScript |
-| 외부 Godot addon / 네이티브 SDK | 없음 |
+| PC 템플릿 | **0.1.0**, 자체 GDScript, [MIT](LICENSE) |
+| Godot AI (에디터 MCP addon) | **4.4.2** ([`hi-godot/godot-ai` `v4.4.2`](https://github.com/hi-godot/godot-ai/releases/tag/v4.4.2)), 순수 GDScript(네이티브 SDK 없음), [MIT](addons/godot_ai/LICENSE); 기본 활성화·export 제외 |
+| 외부 런타임 addon / 네이티브 SDK | 없음 |
 | 선택적 스토어 서비스(StoreService) / Adapter / Mock | 저장소 내 구현; Mock은 Debug 전용 |
 | PC export templates | 엔진과 같은 4.7.2를 개발 환경에 설치 |
 | 데모 WAV / SVG 아이콘 | 자체 생성 자산, 외부 자산 패키지 없음 |

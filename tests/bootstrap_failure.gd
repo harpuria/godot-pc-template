@@ -20,7 +20,7 @@ func _run() -> void:
 		and not SceneManager.transitioning and get_tree().current_scene == self
 	var message_shown := bootstrap.get_children().any(func(child: Node): return child is Label)
 	print("BOOTSTRAP_FAILURE: entry_blocked=%s message_shown=%s" % [blocked, message_shown])
-	DirAccess.remove_absolute(SaveManager.storage_path.get_base_dir())
+	_cleanup(SaveManager.storage_path.get_base_dir())
 	if not blocked or not message_shown:
 		get_tree().quit(1)
 		return
@@ -29,3 +29,12 @@ func _run() -> void:
 	await get_tree().create_timer(1.0).timeout
 	print("BOOTSTRAP_FAILURE: close_allowed=false")
 	get_tree().quit(1)
+
+func _cleanup(directory: String) -> void:
+	var access := DirAccess.open(directory)
+	if access != null:
+		for name in access.get_files():
+			DirAccess.remove_absolute(directory.path_join(name))
+		for name in access.get_directories():
+			_cleanup(directory.path_join(name))
+	DirAccess.remove_absolute(directory)
