@@ -72,7 +72,7 @@ func load_bindings() -> Error:
 	var staged: Dictionary = {}
 	for key in file.get_section_keys("bindings"):
 		var raw: Variant = file.get_value("bindings", key)
-		if not raw is Array or raw.is_empty():
+		if not raw is Array:
 			if recovered_temp:
 				write_blocked = false
 				return OK

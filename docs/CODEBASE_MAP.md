@@ -40,16 +40,18 @@ project.godot
 | ESD 서비스·외부 SDK | `docs/STEAM.md`, `docs/DEPENDENCIES.md`, `services/store/` |
 | 게임 이름·버전·저장 위치·bundle | `config/game.cfg`, `tools/configure.gd` |
 | export preset·서명·패키징·업로드 | `docs/DISTRIBUTION.md`, `export_presets.cfg`, `docs/distribution/` |
+| 에디터 MCP 연결·교체 | [README의 연결 절차](../README.md#ai-클라이언트-연결-및-교체), `.codex/config.toml`, `.mcp.json`, `project.godot`의 `editor_plugins/enabled` |
 | 회귀 검사·CI | `tools/validate.sh`, `.github/workflows/validate.yml`, `tests/` |
 | 동작 예제 / 공통 회귀 | `scenes/demo.gd`, `game/main.gd`, `tests/integration.gd` |
-| 실제 bootstrap 실패 차단 | `tests/bootstrap_failure.tscn`, `tests/fixtures/*init*` |
+| 설정된 첫 장면 진입 | `tests/bootstrap_smoke.gd`가 프로젝트 기본 진입점에서 App 초기화와 실제 전환된 장면을 확인 |
+| 초기화 실패 차단·첫 장면 오류 표시 | `tests/bootstrap_failure.tscn`, `tests/fixtures/*init*` |
 
-`scenes/`와 `assets/demo/`는 공통 기능 예제다. `tests/`가 사용하므로 유지한다. `game/`의 골격은 파생 게임이 소유하며 템플릿 업데이트로 덮어쓰지 않는다. 게임 배포에서 데모를 제외하는 방법은 배포 문서에 있다. `docs/template/`는 템플릿 자체의 기록이며 게임 설계·검증 문서를 쓰는 위치가 아니다.
+`scenes/`와 `assets/demo/`는 공통 기능 예제다. `tests/`가 사용하므로 유지한다. `game/`의 골격은 파생 게임이 소유하며 템플릿 업데이트로 덮어쓰지 않는다. pause 메뉴 전환 검사는 `tests/fixtures/pause_menu.tscn`에서 실행하므로 게임의 첫 장면은 이동하거나 교체할 수 있다. 게임 배포에서 데모를 제외하는 방법은 배포 문서에 있다. `docs/template/`는 템플릿 자체의 기록이며 게임 설계·검증 문서를 쓰는 위치가 아니다.
 
 ## 설정 전파
 
 - 런타임: `config/game.cfg` → GameConfig → App/관리자. 변경 후 재실행한다.
-- 프로젝트·export: `config/game.cfg` → `tools/configure.gd` → `project.godot`, 아홉 preset(0~8번; Windows·macOS·Linux × 세 채널). 공통 UI 번역(`ui/i18n/ui.*.translation`)이 빠져 있으면 등록하고, 기본 활성화된 에디터 MCP 플러그인 `addons/godot_ai`의 `_mcp_game_helper` Autoload를 유지하며 모든 export preset에서 `addons/godot_ai/*`를 제외한다(`GodotAIStripAutoload`가 배포 팩의 `_mcp_game_helper` 항목도 제거). 게임이 이미 정의한 InputMap 바인딩과 기존 SDK·서명 옵션은 보존한다.
+- 프로젝트·export: `config/game.cfg` → `tools/configure.gd` → `project.godot`, 아홉 preset(0~8번; Windows·macOS·Linux × 세 채널). 공통 UI 번역(`ui/i18n/ui.*.translation`)이 빠져 있으면 등록하고, 기본 활성화된 에디터 MCP 플러그인 `addons/godot_ai`의 `_mcp_game_helper` Autoload를 유지한다. Godot AI를 끄면 configure가 해당 helper 등록을 정리한다. configure는 모든 export preset에서 `addons/godot_ai/*`를 제외한다(`GodotAIStripAutoload`가 배포 팩의 `_mcp_game_helper` 항목도 제거). 게임이 이미 정의한 InputMap 바인딩과 기존 SDK·서명 옵션은 보존한다.
 - 배포 채널: preset의 `standalone` / `itch` / `steam` feature가 config보다 우선한다. Editor의 `auto`는 standalone이다.
 - 사용자 설정: 전체 파일 검증 / 디스크 저장 성공 → `Settings.changed` → 오디오 버스. 화면 후보는 WindowManager가 즉시 적용하고 확인 후 Settings에 저장한다. 확인 실패는 `preview_failed` → SettingsPanel의 `operation_failed`로 전달한다.
 - 바인딩: InputManager가 등록된 action의 허용된 입력 필드만 ConfigFile에 기록한다. 아직 등록되지 않은 action의 저장값은 보존한다. `ui_*` action은 재설정 대상에서 제외한다.
@@ -70,11 +72,14 @@ GODOT=/path/to/Godot tools/validate.sh    # 예: macOS /Applications/Godot.app/C
 | 이름 | 명령 인수 | 통과 조건 |
 | --- | --- | --- |
 | import | `--editor --import --quit` | exit 0, 오류 로그 없음 |
+| bootstrap | `--main-loop BootstrapSmokeTest --quit-after 600` | `BOOTSTRAP: entered`와 설정된 장면 경로 |
+| migration-runtime-error | `--scene res://tests/integration.tscn -- --migration-runtime-error` | 변환 오류 후 원본·메모리 보존, 쓰기 차단, 재시도 검사를 모두 통과 |
 | integration (기본 / `--disabled` / `--native`) | `--scene res://tests/integration.tscn [-- 옵션]` | `INTEGRATION: N checks, 0 failures` |
 | bootstrap-failure (기본 / `--runtime-error`) | `--scene res://tests/bootstrap_failure.tscn [-- --runtime-error]` | `entry_blocked=true message_shown=true` 후 창 닫기 요청으로 종료 |
+| bootstrap-scene-error | `--scene res://tests/bootstrap_failure.tscn -- --main-scene-error` | 지연 로드 실패 후 `deferred=true message_shown=true` |
 | gui-integration (`--gui` 선택 시) | `--audio-driver Dummy --scene res://tests/integration.tscn` (headless 제외) | 창·화면 rollback 검사를 포함한 `INTEGRATION: N checks, 0 failures` |
 
-모든 검사는 exit 0이어야 하고 로그에 `SCRIPT ERROR`·`Parse Error`·`ERROR:`·객체 누수가 없어야 한다(Godot은 스크립트 오류 뒤에도 exit 0일 수 있다). 예외는 실패 주입 검사의 `Game init script failed`와 `deliberate_init_failure` 로그뿐이다. 로그는 `build/validation_logs/`에 남는다.
+모든 검사는 exit 0이어야 하고 로그에 `SCRIPT ERROR`·`Parse Error`·`ERROR:`·객체 누수가 없어야 한다(Godot은 스크립트 오류 뒤에도 exit 0일 수 있다). 예외는 실패 주입 검사의 `Game init script failed`와 `deliberate_init_failure`, 저장 변환의 `deliberate_migration_failure`, 장면으로 지정한 Theme의 `Cannot open main scene` 오류뿐이다. 로그는 `build/validation_logs/`에 남는다.
 
 설정 도구·번역·라이선스 고지를 바꿨다면 `configure.gd`와 `write_engine_notices.gd`, CSV import 후 `project.godot`·`export_presets.cfg`·`ui/i18n/`·`third_party/`가 달라지지 않는지(`git diff`) 확인한다. CI도 이 검사를 한다.
 

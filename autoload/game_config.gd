@@ -3,6 +3,7 @@ extends Node
 
 const ENGINE_VERSION := "4.7.2"
 const TEMPLATE_VERSION := "0.1.0"
+const DEFAULT_MAIN_SCENE := "res://scenes/main.tscn"
 const CHANNELS := ["standalone", "itch", "steam"]
 var config := ConfigFile.new()
 

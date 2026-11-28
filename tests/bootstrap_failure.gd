@@ -8,6 +8,10 @@ func _ready() -> void:
 	SaveManager.storage_path = directory + "/save.json"
 	Settings.storage_path = directory + "/settings.cfg"
 	InputManager.storage_path = directory + "/input.cfg"
+	if "--main-scene-error" in OS.get_cmdline_user_args():
+		GameConfig.config.set_value("app", "init_script", "")
+		_deferred_scene_error.call_deferred()
+		return
 	SaveManager.data = {"untouched": true}
 	GameConfig.config.set_value("app", "init_script", "res://tests/fixtures/runtime_error_init_fixture.gd" if runtime_failure else "res://tests/fixtures/failed_init_fixture.gd")
 	_run.call_deferred()
@@ -29,6 +33,21 @@ func _run() -> void:
 	await get_tree().create_timer(1.0).timeout
 	print("BOOTSTRAP_FAILURE: close_allowed=false")
 	get_tree().quit(1)
+
+## 존재하지만 장면으로 로드할 수 없는 리소스의 지연 실패를 실제 bootstrap UI에서 확인한다.
+func _deferred_scene_error() -> void:
+	var path := "res://ui/theme/default_theme.tres"
+	GameConfig.config.set_value("app", "main_scene", path)
+	var bootstrap := preload("res://scenes/bootstrap.tscn").instantiate()
+	add_child(bootstrap)
+	var accepted := SceneManager.transitioning
+	for frame in 6:
+		await get_tree().process_frame
+	var labels := bootstrap.find_children("*", "Label", false, false)
+	var shown: bool = labels.size() == 1 and labels[0].text == tr("UI_MAIN_SCENE_FAILED") % path
+	print("BOOTSTRAP_FAILURE: deferred=%s message_shown=%s" % [accepted, shown])
+	_cleanup(SaveManager.storage_path.get_base_dir())
+	get_tree().quit(0 if accepted and shown and not SceneManager.transitioning else 1)
 
 func _cleanup(directory: String) -> void:
 	var access := DirAccess.open(directory)

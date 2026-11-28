@@ -56,6 +56,12 @@ func _reset_framework_baseline(args: PackedStringArray) -> void:
 
 func _run() -> void:
 	var args := OS.get_cmdline_user_args()
+	if "--migration-runtime-error" in args:
+		_migration_failure_checks()
+		_cleanup(_directory)
+		print("MIGRATION_FAILURE: %d checks, %d failures" % [_checks, _failures])
+		get_tree().quit(0 if _failures == 0 else 1)
+		return
 	var configured_init := str(GameConfig.value("app", "init_script", ""))
 	_check(preload("res://scenes/bootstrap.gd").run_init_script(configured_init) == OK, "Game init skeleton is wired and valid")
 	# 파생 게임이 config와 init hook을 수정한 상태에서도 기준 복원이 동작하는지 검사한다.
@@ -96,9 +102,7 @@ func _run() -> void:
 	_check(ResourceLoader.exists("res://default_bus_layout.tres") and AudioServer.get_bus_index("BGM") == 1 \
 		and AudioServer.get_bus_index("SFX") == 2 and AudioServer.get_bus_index("UI") == 3, "Editor-visible bus layout provides BGM/SFX/UI")
 	_check(load(str(ProjectSettings.get_setting("gui/theme/custom", ""))) is Theme, "Project default theme loads")
-	var enabled_plugins := PackedStringArray(ProjectSettings.get_setting("editor_plugins/enabled", PackedStringArray()))
-	_check(FileAccess.file_exists("res://addons/godot_ai/plugin.cfg") and "res://addons/godot_ai/plugin.cfg" in enabled_plugins \
-		and FileAccess.get_file_as_string("res://export_presets.cfg").count("addons/godot_ai/*") == 9, "Godot AI MCP plugin enabled by default and excluded from all 9 export presets")
+	_mcp_checks()
 	_check(preload("res://scenes/bootstrap.gd").run_init_script("res://game/missing.gd") == ERR_FILE_NOT_FOUND, "Missing hook rejected")
 	_save_checks()
 	_settings_checks()
@@ -109,14 +113,35 @@ func _run() -> void:
 	await _service_checks()
 	await _display_checks()
 	await _audio_checks()
+	await _scene_checks(args, store_instance)
+	await get_tree().process_frame
+	AudioManager.stop_bgm()
+	await _wait_for_audio_cleanup()
+	if not "--capture" in args:
+		_cleanup(_directory)
+	print("INTEGRATION: %d checks, %d failures" % [_checks, _failures])
+	get_tree().quit(0 if _failures == 0 else 1)
+
+## 요청 거절·지연 실패·완료 신호 누락도 유한한 프레임 안에 검사 결과로 남긴다.
+func _entered_scene(path: String) -> bool:
+	for frame in 120:
+		if not SceneManager.transitioning:
+			break
+		await get_tree().process_frame
+	var scene := get_tree().current_scene
+	var entered := not SceneManager.transitioning and scene != null and scene.scene_file_path == path
+	_check(entered, "Scene transition reached " + path)
+	return entered
+
+func _scene_checks(args: PackedStringArray, store_instance: StoreService) -> void:
 	# 통합 검사를 App 아래로 옮겨 실제 current_scene 교체 뒤에도 검사를 계속한다.
 	reparent(App)
 	get_tree().current_scene = null
 	InputManager.start_capture(&"primary_action")
 	_check(SceneManager.change_scene("res://scenes/main.tscn") == OK and InputManager.capturing.is_empty(), "Scene transition cancels pending input capture")
 	_check(SceneManager.change_scene("res://scenes/transition_demo.tscn") == ERR_BUSY, "Duplicate transition rejected")
-	await SceneManager.transition_completed
-	_check(get_tree().current_scene.scene_file_path == "res://scenes/main.tscn", "Demo scene entered")
+	if not await _entered_scene("res://scenes/main.tscn"):
+		return
 	var demo_scrolls := get_tree().current_scene.find_children("*", "ScrollContainer", true, false)
 	_check(not demo_scrolls.is_empty() and (demo_scrolls[0] as ScrollContainer).follow_focus, "Demo scroll container follows keyboard/gamepad focus")
 	_check(not SceneManager.transitioning, "Transition completed state")
@@ -127,15 +152,16 @@ func _run() -> void:
 		print("CAPTURE: " + _directory + "/demo.png")
 	_check(SceneManager.change_scene("res://scenes/missing.tscn") == ERR_FILE_NOT_FOUND, "Missing scene fails safely")
 	_check(SceneManager.change_scene("res://scenes/transition_demo.tscn") == OK, "Second scene accepted")
-	await SceneManager.transition_completed
-	_check(get_tree().current_scene.scene_file_path == "res://scenes/transition_demo.tscn", "Second scene entered")
+	if not await _entered_scene("res://scenes/transition_demo.tscn"):
+		return
 	_check(App.store == store_instance and SaveManager.data.get("recovered") == true, "Managers persist across scenes")
-	_check(SceneManager.change_scene("res://game/main.tscn") == OK, "Game skeleton scene accepted")
-	await SceneManager.transition_completed
-	var scene_menus := get_tree().current_scene.get_children().filter(func(child: Node): return child is PauseMenu)
-	_check(get_tree().current_scene.scene_file_path == "res://game/main.tscn" and not scene_menus.is_empty(), "Game skeleton enters with pause menu")
-	if not scene_menus.is_empty():
-		var game_menu := scene_menus[0] as PauseMenu
+	var fixture := "res://tests/fixtures/pause_menu.tscn"
+	_check(SceneManager.change_scene(fixture) == OK, "Pause menu fixture accepted")
+	if not await _entered_scene(fixture):
+		return
+	var game_menu := get_tree().current_scene as PauseMenu
+	_check(game_menu != null, "Pause menu fixture loads the shared menu")
+	if game_menu != null:
 		game_menu.open()
 		_check(get_tree().paused and App.has_pause_reason("menu"), "Scene pause menu pauses before transition")
 		_check(SceneManager.change_scene("res://scenes/transition_demo.tscn") == OK, "Transition while pause menu is open accepted")
@@ -144,15 +170,9 @@ func _run() -> void:
 		pause_action.pressed = true
 		game_menu._unhandled_input(pause_action)
 		_check(game_menu.is_open(), "Pause shortcut ignored while scene transition is in progress")
-		await SceneManager.transition_completed
+		if not await _entered_scene("res://scenes/transition_demo.tscn"):
+			return
 		_check(not get_tree().paused and not App.has_pause_reason("menu") and not AudioManager._suspended, "Leaving scene with open pause menu releases menu pause and audio")
-	await get_tree().process_frame
-	AudioManager.stop_bgm()
-	await _wait_for_audio_cleanup()
-	if not "--capture" in args:
-		_cleanup(_directory)
-	print("INTEGRATION: %d checks, %d failures" % [_checks, _failures])
-	get_tree().quit(0 if _failures == 0 else 1)
 
 func _init_checks() -> void:
 	var bootstrap := preload("res://scenes/bootstrap.gd")
@@ -162,6 +182,21 @@ func _init_checks() -> void:
 	_check(bootstrap.run_init_script("res://tests/fixtures/invalid_init_result_fixture.gd") == ERR_INVALID_DATA, "Missing hook result cannot imply success")
 	_check(not SaveManager.has_meta("invalid_hook_called"), "Invalid hook bodies never run")
 	_check(not App.ready_for_game and SaveManager.schema_version == 1, "Failed hooks leave App uninitialized")
+
+func _mcp_checks() -> void:
+	var addon := "res://addons/godot_ai/plugin.cfg"
+	var helper := "*res://addons/godot_ai/runtime/game_helper.gd"
+	var enabled: PackedStringArray = ProjectSettings.get_setting("editor_plugins/enabled", PackedStringArray())
+	var registered: bool = ProjectSettings.get_setting("autoload/_mcp_game_helper", "") == helper
+	_check(registered == (addon in enabled), "Godot AI helper follows the project plugin selection")
+	if addon in enabled:
+		_check(FileAccess.file_exists(addon), "Selected Godot AI plugin is installed")
+	if FileAccess.file_exists(addon):
+		var presets := ConfigFile.new()
+		_check(presets.load("res://export_presets.cfg") == OK, "Export presets load")
+		for index in range(9):
+			var filters := str(presets.get_value("preset.%d" % index, "exclude_filter", "")).split(",")
+			_check("addons/godot_ai/*" in filters, "Godot AI excluded from export preset %d" % index)
 
 func _save_checks() -> void:
 	_check(SaveManager.data.is_empty(), "Missing save starts empty")
@@ -200,6 +235,31 @@ func _save_checks() -> void:
 	_check(SaveManager.load_slot() == OK and SaveManager.data.is_empty() and not SaveManager.write_blocked, "Incomplete first-write temp starts fresh")
 	SaveManager.storage_path = original_path
 	_check(SaveManager.load_slot() == OK and SaveManager.data.recovered, "Original save path restored")
+
+## 두 번째 변환에서 실패한 후 원본 보존과 같은 슬롯의 재시도를 검증한다.
+func _migration_failure_checks() -> void:
+	SaveManager.reset_slot({"progress": 39})
+	_check(SaveManager.save_slot() == OK, "Migration fixture saved at version 1")
+	var original := FileAccess.get_file_as_bytes(SaveManager.storage_path)
+	SaveManager.set_value("unsaved", true)
+	var previous := SaveManager.data.duplicate(true)
+	SaveManager.schema_version = 3
+	SaveManager.register_migration(1, func(old: Dictionary) -> Dictionary:
+		old["stage"] = 2
+		return old)
+	SaveManager.register_migration(2, func(old: Dictionary) -> Dictionary:
+		old.clear()
+		var target: Variant = null
+		return target.deliberate_migration_failure())
+	_check(SaveManager.load_slot() == ERR_INVALID_DATA, "Runtime error rejects the entire migration")
+	_check(SaveManager.write_blocked and SaveManager.dirty and SaveManager.data == previous, "Failed migration preserves unsaved memory")
+	_check(SaveManager.flush() == ERR_UNAUTHORIZED and FileAccess.get_file_as_bytes(SaveManager.storage_path) == original, "Failed migration preserves original bytes and blocks autosave")
+	SaveManager.register_migration(2, func(old: Dictionary) -> Dictionary:
+		old.clear()
+		return old)
+	_check(SaveManager.load_slot() == OK and not SaveManager.write_blocked, "Can retry with an intentional empty migration")
+	var migrated := JsonStore.read(SaveManager.storage_path)
+	_check(migrated.error == OK and migrated.document.version == 3 and migrated.document.data == {} and SaveManager.data.is_empty(), "Explicitly cleared data persisted at the final version")
 
 func _settings_checks() -> void:
 	_check(Settings.set_setting("master_volume", 2.0) == OK and Settings.get_setting("master_volume") == 1.0, "Volume clamped")
@@ -399,7 +459,10 @@ func _input_checks() -> void:
 	captured.pressed = true
 	InputManager._input(captured)
 	_check(InputManager.slot_events(&"move_left", "keyboard_mouse")[1].physical_keycode == KEY_G, "Captured input lands in requested slot")
-	_check(InputManager.load_bindings() == OK, "Bindings round trip")
+	_check(InputManager.register_action(&"test_unassigned") == OK and InputManager.save_bindings() == OK, "An unassigned game action can be saved")
+	InputMap.action_add_event(&"test_unassigned", DefaultInput.key(KEY_T))
+	_check(InputManager.load_bindings() == OK and not InputManager.write_blocked and InputMap.action_get_events(&"test_unassigned").is_empty(), "Reload restores the unassigned action")
+	_check(InputManager.slot_events(&"move_left", "keyboard_mouse")[1].physical_keycode == KEY_G, "Other bindings survive an unassigned action")
 	key.physical_keycode = KEY_A
 	_check(InputManager.rebind(&"primary_action", key) == ERR_ALREADY_IN_USE, "Binding conflict rejected")
 	_check(InputManager.decode_event({"type": "joy_axis", "axis": -1, "value": 1.0}) == null, "Invalid controller axis rejected")

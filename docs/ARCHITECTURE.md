@@ -27,7 +27,7 @@ hook 계약:
 
 `App.initialize()`는 한 번만 수행한다. 서비스 feature가 꺼져 있으면 SDK 초기화를 생략한다. Debug의 명시적 `mode=mock`은 Mock, `mode=native`와 init hook에서 등록한 Adapter 조합은 실제 연결을 선택한다(Steam 등 배포 채널 분기는 init hook에서 결정한다). 나머지는 unavailable이며 게임 로컬 기능을 계속 사용할 수 있다. release에서는 Mock을 선택하거나 초기화하지 않는다.
 
-공통 관리자는 앱 수명이다. 장면 이동 뒤에도 살아 있으며 SceneManager는 전환 중복을 `ERR_BUSY`로 거절한다. 로딩 화면을 그릴 두 프레임 뒤에 메인 스레드에서 장면을 읽는다. 대형 리소스의 streaming은 별도 구현 범위다.
+공통 관리자는 앱 수명이다. 장면 이동 뒤에도 살아 있으며 SceneManager는 전환 중복을 `ERR_BUSY`로 거절한다. 로딩 화면을 그릴 두 프레임 뒤에 메인 스레드에서 장면을 읽는다. 첫 장면이 로딩 중 실패하면 bootstrap이 장면 경로와 함께 시작 실패 문구를 표시한다. 대형 리소스의 streaming은 별도 구현 범위다.
 
 ## 저장 데이터와 설정
 
@@ -35,6 +35,8 @@ hook 계약:
 - Settings: `user://settings.cfg`의 음량·언어·화면 옵션과 게임별 추가 설정.
 - InputManager: `user://input.cfg`의 입력 종류와 숫자 필드. arbitrary Object를 역직렬화하지 않는다.
 - JsonStore: 디렉터리 생성 → 같은 디렉터리의 `.tmp` 기록·flush → rename 교체. Windows의 rename은 기존 파일을 지운 뒤 이동하므로, 원본이 없고 유효한 완성 `.tmp`만 남아 있으면 SaveManager·Settings·InputManager 모두 먼저 rename으로 원본 경로에 무손실 승격한 뒤 필요할 때만(예: 저장 migration) 새 `.tmp`를 기록한다. 원본 없이 미완성 첫 쓰기 `.tmp`(빈 파일·불완전 값)만 남은 경우에는 쓰기를 차단하지 않고 새 사용자로 시작한다.
+
+저장 migration 함수는 다음 버전의 데이터를 `Dictionary`로 반환한다. 데이터를 모두 비우려면 인수로 받은 사본에 `clear()`를 호출하고 그 사본을 반환한다. GDScript의 런타임 오류도 새 빈 Dictionary를 반환할 수 있으므로 `return {}`는 `ERR_INVALID_DATA`로 처리한다. 모든 단계가 끝난 뒤에만 메모리와 파일에 결과를 반영한다.
 
 진행 저장의 parse·schema·migration 실패는 메모리와 원본을 보존하고 이후 쓰기를 차단한다. 미래 버전·분수 version도 거절한다. 정상 load(migration 시 즉시 재기록) 또는 사용자 선택 이후 `reset_slot()`로 차단을 해제한다. 설정과 바인딩도 원본 손상 시 교체를 차단하고 명시적 reset을 제공하며, reset 시 디스크 기록이 실패하면 이전 메모리 상태와 차단 여부를 유지한다.
 
@@ -52,7 +54,7 @@ InputManager는 공통 action(`COMMON_ACTIONS`)과 게임이 `register_action()`
 
 - 바인딩은 장치 종류(`keyboard_mouse` / `controller`)마다 칸으로 다룬다. `rebind(action, event, slot)`은 그 장치 종류의 slot번째 입력만 교체하고 다른 칸·다른 장치 종류는 유지한다. `clear_slot(action, category, slot)`은 지정 칸을 비우되 action의 마지막 남은 입력이나 `pause`의 유일한 키보드 입력은 지우지 않는다. 설정 UI는 주(0)·보조(1) 변경과 장치 종류별 보조 비우기 버튼 두 개를 제공한다. 키보드 입력은 `physical_keycode`가 있으면 물리 위치를 기준으로 정규화(`keycode=0`)하여 저장·비교하고, 창 환경에서는 현재 키보드 배열의 키 이름으로 표시한다.
 - 같은 장치 종류에서 다른 action이나 같은 action의 다른 칸이 쓰는 입력은 `ERR_ALREADY_IN_USE`로 거절한다. `ui_*` action은 등록·재설정 대상이 아니다.
-- 파일에 있지만 아직 등록되지 않은 action의 바인딩은 보존했다가 등록 시 적용한다. 손상된 파일은 `load_failed`를 보내고 쓰기를 차단한다.
+- 입력이 없는 action은 빈 배열로 저장·복원한다. 파일에 있지만 아직 등록되지 않은 action의 바인딩은 보존했다가 등록 시 적용한다. 손상된 파일은 `load_failed`를 보내고 쓰기를 차단한다.
 - 컨트롤 표시 아이콘과 로컬 다인 입력의 장치 배정은 게임이 추가한다. 게임패드 이벤트는 `device=-1`로 모든 컨트롤러를 받는다.
 
 캡처 중 Ctrl·Shift·Alt·Meta 단독 press/release는 소비하고 다음 조합 키를 기다린다. 수정키 단독 바인딩은 캡처 UI에서 제공하지 않는다. Escape는 캡처를 취소하지만, `pause` action 캡처 중 다른 칸에 Escape가 없을 때는 수정키 없는 단독 Escape로 다시 할당할 수 있다. 장면 전환·포커스 상실·화면 미리보기 확인·종료 대화상자 표시 시 진행 중인 캡처는 자동 취소된다.

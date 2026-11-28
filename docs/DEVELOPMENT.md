@@ -81,7 +81,7 @@ godot --headless --path . --editor --import --quit
 godot --headless --path . --script res://tools/configure.gd
 ```
 
-configure는 앱 정보, 화면 크기, 기본 action(및 기존 기본 action의 deadzone), 공통 UI 번역 등록과 export preset 0~8번(Windows·macOS·Linux × Standalone·Itch·Steam)을 갱신하고 `build/` 출력 폴더를 만든다. 이미 있는 Input Map의 바인딩, 추가 custom feature, 서명·아이콘 같은 preset 옵션은 유지한다. 직접 만든 preset은 9번 이후에 두며, 0~8번 자리에 다른 이름의 preset이 있으면 덮어쓰지 않고 실패한다.
+configure는 먼저 `app/main_scene`이 인스턴스를 만들 수 있는 `PackedScene`인지 확인한다. 잘못된 경로를 지정하면 프로젝트 설정과 preset을 쓰기 전에 실패한다. 검사를 통과하면 앱 정보, 화면 크기, 기본 action(및 기존 기본 action의 deadzone), 공통 UI 번역 등록과 export preset 0~8번(Windows·macOS·Linux × Standalone·Itch·Steam)을 갱신하고 `build/` 출력 폴더를 만든다. 이미 있는 Input Map의 바인딩, 추가 custom feature, 서명·아이콘 같은 preset 옵션은 유지한다. 출력 폴더 생성이 실패하면 경로와 오류를 보고하고 프로젝트 설정과 preset을 쓰기 전에 종료한다. 직접 만든 preset은 9번 이후에 두며, 0~8번 자리에 다른 이름의 preset이 있으면 덮어쓰지 않고 실패한다.
 
 ## 사용자 데이터 파일
 

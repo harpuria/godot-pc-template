@@ -2,6 +2,38 @@
 
 Template 0.1.0 및 미출시 보완의 실제 실행 기록이다. 최신 기록이 위에 있다. 다른 템플릿(모바일 등)이나 다른 OS의 결과를 승계하지 않는다.
 
+## 장면 로딩·입력 저장·파생 게임·출력 폴더 검증 — 2026-11-29
+
+Linux x86_64, Godot 4.7.2 Standard에서 `tools/validate.sh --gui`를 실행했다. 기본·disabled·native 통합 검사는 각각 286개, Xorg GUI 검사는 299개가 통과했다.
+
+- 부트스트랩이 첫 장면 요청을 수락한 뒤 로딩에 실패했을 때 경로를 담은 번역 오류 메시지 하나가 표시됐다.
+- 기본 키가 없는 게임 action을 저장하고 다시 읽어 미할당 상태와 다른 action의 변경한 키가 함께 복원됐다.
+- 임시 복사본에서 `game/main.tscn`을 제거하고 pause 메뉴 없는 `game/title.tscn`을 첫 장면으로 지정했다. 실제 시작 검사와 headless 전체 검사가 통과했다. 공통 pause 메뉴 fixture를 제거한 별도 실패 검사에서는 통합 러너가 종료 코드 1을 반환했다.
+- `build/linux`를 일반 파일로 만들었을 때 configure가 실패 경로를 표시하고 종료 코드 1을 반환했다. 프로젝트 설정과 export preset의 해시가 유지됐으며, 충돌을 해소하고 재실행하자 9개 preset의 출력 폴더가 준비됐다.
+
+## 저장 마이그레이션 실패와 첫 장면 진입 검증 — 2026-11-29
+
+Linux x86_64에서 Godot 4.7.2 Standard로 실행했다.
+
+| 검사 | 확인한 결과 |
+| --- | --- |
+| 저장 마이그레이션 | 두 번째 변환에서 사본을 비운 뒤 런타임 오류를 발생시켰다. 원본 파일의 바이트와 미저장 메모리가 유지되고 자동 저장은 차단됐다. 변환을 고쳐 같은 슬롯을 다시 읽자 빈 데이터가 최종 버전으로 저장됐다. 회귀 검사 6개 통과. |
+| 첫 장면 검증 | 격리한 복사본에서 없는 파일, 장면이 아닌 리소스, 손상된 장면, 빈 경로를 각각 지정했다. 네 경우 모두 configure와 시작 검사가 종료 코드 1을 반환했고, `project.godot`과 `export_presets.cfg`의 해시가 유지됐다. 정상 설정에서는 기본 데모와 파생 게임의 `game/main.tscn` 각각에 진입했다. |
+| 전체 회귀 | `tools/validate.sh --gui` 통과. headless 통합 3종 각각 282개, Xorg 가상 디스플레이의 GUI 통합 295개, 초기화 실패 주입 2종 통과. configure와 고지 생성 후 생성 파일 diff 없음. |
+
+## 프로젝트 MCP 기본값과 교체 검증 — 2026-11-28
+
+Linux x86_64, Godot 4.7.2 Standard, Godot AI 4.4.2, uv 0.13.9로 확인했다.
+
+| 검사 | 결과 |
+| --- | --- |
+| 기본 MCP 연결 | Codex TOML과 Claude Code JSON에서 읽은 실행 파일과 인수가 일치했다. 해당 stdio 명령으로 초기화해 도구 47개를 조회했다. `session_manage(list)`에서 프로젝트 경로와 플러그인·서버 4.4.2를, `editor_state`에서 `ready`와 `res://scenes/bootstrap.tscn`을 확인했다. |
+| 공통 회귀 | 기본·disabled·native 각각 282개 통과, 초기화 실패 주입 2종 통과. Xorg dummy 디스플레이에서 GUI 295개 통과. |
+| MCP 교체 | 별도 복사본에서 테스트용 EditorPlugin을 선택하고 configure를 두 번 실행했다. 새 선택이 유지되고 이전 helper가 제거되었다. 세 headless 모드에서 각각 281개 통과. |
+| 배포 팩 | Linux Standalone PCK를 만들고 저장소 밖에서 엔진으로 실행해 데모 장면 진입을 확인했다. Godot AI helper 스크립트와 Autoload, 두 클라이언트 설정 파일은 팩에서 제외되었다. |
+
+Windows·macOS 클라이언트, 서명된 실행 파일, 외부 대체 MCP 서버와의 통신은 이 실행의 검증 범위 밖이다.
+
 ## 런타임·설정·회귀 검사 보완 검증 — 2026-11-27
 
 메뉴 pause 중 `UI` 효과음 유지·한도 분리·일시 정지 중 동일 BGM 위치 유지, 물리 키코드 정규화·`pause`의 Escape 재할당·게임패드 `ui_accept`/`ui_cancel` 기본 매핑 및 스크롤 포커스 추적·장치별 보조 슬롯 비우기 버튼 분리·입력 범위 대칭화, 열린 `PauseMenu`의 `ui_cancel` 닫기 및 장면 전환 정리·`QuitDialogs` 중복/재시도 pause 처리·캡처 자동 취소, 미완성 첫 쓰기 `.tmp` 보호·복구 `.tmp` 무손실 선(先) 승격·복구 실패 시 롤백·autosave 시작 시점 분리, 로케일 지역/fallback 매칭·다중 번역 리소스 순회, `SettingsPanel` 동기화·커스텀 항목 단일 유지·슬라이더 드래그 저장 디바운스·캡처 소유권 분리, `WindowManager` 클램핑 역덮어쓰기 차단·위치 유지, `StoreService` FIFO 요청 대기열·`user_id()`·채널 무관 native adapter 활성화, `Godot AI` **4.4.2**(`addons/godot_ai`) 기본 활성화 및 export 제외, MIT `LICENSE`·단일 엔진 버전 상수·`configure.gd` deadzone/필터 보완·`validate.sh --gui` 및 파생 게임 설정 격리 후 실행했다. **Linux 환경**의 결과이며 Windows/macOS 실행으로 간주하지 않는다.

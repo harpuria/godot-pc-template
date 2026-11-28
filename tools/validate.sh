@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 공통 회귀 검사: import, 통합 검사 3종(기본·disabled·native), 초기화 실패 차단 2종, 선택적 GUI(--gui) 검사.
+# 프로젝트 import, 첫 장면 진입, 저장·초기화 실패 복구와 통합 회귀를 검사한다.
 # 사용법: tools/validate.sh [--gui]            (PATH의 godot 사용)
 #         GODOT=/path/to/Godot tools/validate.sh [--gui]
 # 로그는 build/validation_logs/에 남는다. Godot은 스크립트 오류 뒤에도 exit 0일 수 있어 로그도 검사한다.
@@ -54,7 +54,7 @@ run_check() {
 	[ -z "$unexpected" ] || problems="$problems unexpected errors;"
 	if [ -z "$problems" ]; then
 		local summary
-		summary="$({ grep -oE 'INTEGRATION: .*|BOOTSTRAP_FAILURE: .*' "$log" || true; } | head -n 1)"
+		summary="$({ grep -oE 'INTEGRATION: .*|BOOTSTRAP: .*|BOOTSTRAP_FAILURE: .*|MIGRATION_FAILURE: .*' "$log" || true; } | head -n 1)"
 		echo "PASS $name $summary"
 	else
 		failures=$((failures + 1))
@@ -70,6 +70,9 @@ check() {
 }
 
 check import "" "" --editor --import --quit
+check bootstrap "BOOTSTRAP: entered " "" --main-loop BootstrapSmokeTest --quit-after 600
+check migration-runtime-error "checks, 0 failures" "SCRIPT ERROR: Invalid call. Nonexistent function 'deliberate_migration_failure' in base 'Nil'" \
+	--scene res://tests/integration.tscn -- --migration-runtime-error
 check integration "checks, 0 failures" "" --scene res://tests/integration.tscn
 check integration-disabled "checks, 0 failures" "" --scene res://tests/integration.tscn -- --disabled
 check integration-native "checks, 0 failures" "" --scene res://tests/integration.tscn -- --native
@@ -78,6 +81,8 @@ check bootstrap-failure "entry_blocked=true message_shown=true" "Game init scrip
 	--scene res://tests/bootstrap_failure.tscn
 check bootstrap-runtime-error "entry_blocked=true message_shown=true" "Game init script failed|deliberate_init_failure" \
 	--scene res://tests/bootstrap_failure.tscn -- --runtime-error
+check bootstrap-scene-error "deferred=true message_shown=true" "Cannot open main scene: res://ui/theme/default_theme.tres" \
+	--scene res://tests/bootstrap_failure.tscn -- --main-scene-error
 if [ "$RUN_GUI" -eq 1 ]; then
 	run_check gui-integration "checks, 0 failures" "" --audio-driver Dummy --scene res://tests/integration.tscn
 fi
