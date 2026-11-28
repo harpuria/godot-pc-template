@@ -84,6 +84,11 @@ func _initialize() -> void:
 		if not path in translations:
 			translations.append(path)
 	ProjectSettings.set_setting("internationalization/locale/translations", translations)
+	var enabled_plugins := PackedStringArray(ProjectSettings.get_setting("editor_plugins/enabled", PackedStringArray()))
+	if "res://addons/godot_ai/plugin.cfg" in enabled_plugins and ResourceLoader.exists("res://addons/godot_ai/runtime/game_helper.gd"):
+		ProjectSettings.set_setting("autoload/_mcp_game_helper", "*res://addons/godot_ai/runtime/game_helper.gd")
+		ProjectSettings.set_initial_value("autoload/_mcp_game_helper", "")
+		ProjectSettings.set_as_basic("autoload/_mcp_game_helper", true)
 	var index := 0
 	for platform_info in PLATFORMS:
 		var platform: String = platform_info[0]
@@ -110,7 +115,7 @@ func _initialize() -> void:
 			presets.set_value(section, "custom_features", ",".join(custom))
 			presets.set_value(section, "export_filter", "all_resources")
 			var include_filter := "config/game.cfg,third_party/*.txt"
-			var exclude_filter := "docs/*,tests/*,tools/*,*.md,config/*.local.cfg,steam_appid.txt,build/*,dist/*"
+			var exclude_filter := "addons/godot_ai/*,docs/*,tests/*,tools/*,*.md,config/*.local.cfg,steam_appid.txt,build/*,dist/*"
 			include_filter = _append_filter(include_filter, str(config.get_value("export", "extra_include_filter", "")))
 			exclude_filter = _append_filter(exclude_filter, str(config.get_value("export", "extra_exclude_filter", "")))
 			if exclude_demo:

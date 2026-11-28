@@ -96,6 +96,9 @@ func _run() -> void:
 	_check(ResourceLoader.exists("res://default_bus_layout.tres") and AudioServer.get_bus_index("BGM") == 1 \
 		and AudioServer.get_bus_index("SFX") == 2 and AudioServer.get_bus_index("UI") == 3, "Editor-visible bus layout provides BGM/SFX/UI")
 	_check(load(str(ProjectSettings.get_setting("gui/theme/custom", ""))) is Theme, "Project default theme loads")
+	var enabled_plugins := PackedStringArray(ProjectSettings.get_setting("editor_plugins/enabled", PackedStringArray()))
+	_check(FileAccess.file_exists("res://addons/godot_ai/plugin.cfg") and "res://addons/godot_ai/plugin.cfg" in enabled_plugins \
+		and FileAccess.get_file_as_string("res://export_presets.cfg").count("addons/godot_ai/*") == 9, "Godot AI MCP plugin enabled by default and excluded from all 9 export presets")
 	_check(preload("res://scenes/bootstrap.gd").run_init_script("res://game/missing.gd") == ERR_FILE_NOT_FOUND, "Missing hook rejected")
 	_save_checks()
 	_settings_checks()

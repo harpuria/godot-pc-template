@@ -49,7 +49,7 @@ project.godot
 ## 설정 전파
 
 - 런타임: `config/game.cfg` → GameConfig → App/관리자. 변경 후 재실행한다.
-- 프로젝트·export: `config/game.cfg` → `tools/configure.gd` → `project.godot`, 아홉 preset(0~8번; Windows·macOS·Linux × 세 채널). 공통 UI 번역(`ui/i18n/ui.*.translation`)이 빠져 있으면 등록한다. 게임이 이미 정의한 InputMap과 기존 SDK·서명 옵션은 보존한다.
+- 프로젝트·export: `config/game.cfg` → `tools/configure.gd` → `project.godot`, 아홉 preset(0~8번; Windows·macOS·Linux × 세 채널). 공통 UI 번역(`ui/i18n/ui.*.translation`)이 빠져 있으면 등록하고, 기본 활성화된 에디터 MCP 플러그인 `addons/godot_ai`의 `_mcp_game_helper` Autoload를 유지하며 모든 export preset에서 `addons/godot_ai/*`를 제외한다(`GodotAIStripAutoload`가 배포 팩의 `_mcp_game_helper` 항목도 제거). 게임이 이미 정의한 InputMap 바인딩과 기존 SDK·서명 옵션은 보존한다.
 - 배포 채널: preset의 `standalone` / `itch` / `steam` feature가 config보다 우선한다. Editor의 `auto`는 standalone이다.
 - 사용자 설정: 전체 파일 검증 / 디스크 저장 성공 → `Settings.changed` → 오디오 버스. 화면 후보는 WindowManager가 즉시 적용하고 확인 후 Settings에 저장한다. 확인 실패는 `preview_failed` → SettingsPanel의 `operation_failed`로 전달한다.
 - 바인딩: InputManager가 등록된 action의 허용된 입력 필드만 ConfigFile에 기록한다. 아직 등록되지 않은 action의 저장값은 보존한다. `ui_*` action은 재설정 대상에서 제외한다.

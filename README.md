@@ -17,7 +17,7 @@ PC 게임을 시작할 때 쓰는 공통 프로젝트다. 저장, 설정, 오디
 2. Godot에서 **Import**를 누르고 이 폴더의 `project.godot`를 선택한다.
 3. **F5**를 누른다. `PC TEMPLATE` 화면이 나오면 준비가 끝났다.
 
-Steam 클라이언트나 외부 플러그인은 필요하지 않다.
+Steam 클라이언트나 외부 런타임 플러그인은 필요하지 않다. 에디터용 MCP 플러그인 **Godot AI**(`addons/godot_ai`, v4.4.2)가 기본 활성화되어 있으므로, Claude Code·Cursor·Codex·Antigravity 등 AI 클라이언트를 에디터에 연결할 때만 [uv](https://docs.astral.sh/uv/getting-started/installation/)를 설치하고 에디터의 **Godot AI** 독에서 **Configure**를 누른다(`uv`가 없어도 에디터·게임 실행에는 지장 없다).
 
 ## 2. 공통 기능 눌러 보기
 
@@ -102,7 +102,8 @@ Windows는 x86_64 `.exe`와 `.pck`, macOS는 Intel/Apple Silicon 공용 Universa
 | --- | --- |
 | Godot / 내장 GDScript | **4.7.2** 고정, MIT |
 | PC 템플릿 | **0.1.0**, 자체 GDScript, [MIT](LICENSE) |
-| 외부 Godot addon / 네이티브 SDK | 없음 |
+| Godot AI (에디터 MCP addon) | **4.4.2** ([`hi-godot/godot-ai` `v4.4.2`](https://github.com/hi-godot/godot-ai/releases/tag/v4.4.2)), 순수 GDScript(네이티브 SDK 없음), [MIT](addons/godot_ai/LICENSE); 기본 활성화·export 제외 |
+| 외부 런타임 addon / 네이티브 SDK | 없음 |
 | 선택적 스토어 서비스(StoreService) / Adapter / Mock | 저장소 내 구현; Mock은 Debug 전용 |
 | PC export templates | 엔진과 같은 4.7.2를 개발 환경에 설치 |
 | 데모 WAV / SVG 아이콘 | 자체 생성 자산, 외부 자산 패키지 없음 |

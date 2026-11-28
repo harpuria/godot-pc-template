@@ -9,6 +9,7 @@
 - 번역·언어: 새 사용자의 초기 언어를 `OS.get_locale()` 기준으로 등록된 번역과 비교해 지역·스크립트(`zh_TW` / `zh_CN` 등)까지 매칭하고, 미지원 OS 언어에서는 프로젝트 fallback 언어를 선택하여 설정 창의 언어 목록이 빈 상태(`-1`)가 되지 않게 했다. Deprecated 대상인 `get_translation_object()` 대신 `find_translations()`로 모든 번역 리소스를 순회한다.
 - 설정 패널·창 관리: SettingsPanel이 `Settings.changed`로 복수 패널과 외부 변경을 동기화하고, 커스텀 창 크기·FPS 항목은 단일 항목으로 교체하며, 음량 슬라이더 드래그 중에는 오디오 버스만 먼저 반영한 뒤 드래그 종료 시 디스크에 기록한다(`write_blocked` 상태에서도 드래그 종료 시 1회만 오류를 알린다). 캡처 실패 신호는 캡처를 시작한 패널만 내보낸다. WindowManager는 VSync·FPS만 바꿀 때 창 위치를 다시 중앙으로 옮기지 않고, 전체 화면 전환 뒤 이전 창 위치를 복원하며, 작업 표시줄 영역으로 클램핑한 크기가 저장된 `window_size`를 덮어쓰지 않는다.
 - 스토어(`StoreService`): 연속 업적·점수 제출이 `ERR_BUSY`로 탈락하지 않도록 FIFO 요청 대기열(`MAX_QUEUE_SIZE = 32`)로 직렬화하고 대기열 초과 시에만 `ERR_BUSY`를 내보낸다. `StoreService.user_id()` 위임 메서드를 추가했고, `mode = "native"`에서 등록한 검증된 `StoreAdapter`는 `steam` 외 배포 채널에서도 초기화할 수 있다.
+- 에디터 MCP(`Godot AI`): `hi-godot/godot-ai` 서명 릴리스 **4.4.2**(`addons/godot_ai/`, MIT, 순수 GDScript)를 포함해 기본 활성화하고(`editor_plugins/enabled`, `autoload/_mcp_game_helper`), 아홉 PC export preset 모두에서 `addons/godot_ai/*`를 제외했다(`GodotAIStripAutoload`로 배포 팩의 helper Autoload도 제거).
 - 도구·라이선스·검증: 루트 MIT `LICENSE` 추가 및 BOM 동기화, `GameConfig.ENGINE_VERSION` 단일 상수 참조 및 `.godot-version` 일치 검사, `configure.gd`의 기존 기본 action `deadzone` 갱신·필터 공백/중복 정리, `tools/validate.sh --gui` 옵션 및 알 수 없는 인수 검증 추가, GitHub Actions CI의 Godot 아카이브 공식 `SHA512-SUMS.txt` 검증·Xvfb GUI 검사·생성 산출물(`project.godot`, `export_presets.cfg`, `ui/i18n/`, `third_party/`) diff 검증, 공통 통합 검사(`tests/integration.gd`)의 파생 게임 설정 격리 및 `bootstrap_failure.gd` 임시 디렉터리 재귀 정리.
 
 기존 게임 적용:

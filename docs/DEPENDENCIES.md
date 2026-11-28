@@ -12,9 +12,10 @@
 | 데모 WAV | 모바일 템플릿의 자체 생성 사인파 | 외부 자산 library 없음 | 로컬 asset |
 | PC SVG 아이콘 | 이 템플릿에서 직접 작성 | 외부 자산 library 없음 | 로컬 asset |
 | Windows/macOS/Linux export templates | 엔진과 일치하는 4.7.2; [공식 archive](https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz) | Godot 및 포함된 제3자 license | 로컬 macOS 환경에 Windows x86_64 Debug/Release·macOS 설치; Linux x86_64 Debug/Release는 Linux 검증 환경에 설치 |
-| 외부 Godot addon / native SDK | 없음 | N/A | 미설치 |
+| Godot AI (에디터 MCP addon, `addons/godot_ai/`) | `4.4.2` (`v4.4.2`, commit `423954f4314e250fa2602525d461debc91b1a173`); [공식 release](https://github.com/hi-godot/godot-ai/releases/tag/v4.4.2) (`godot-ai-v4-plugin.zip` SHA-256 `93b976b68df03352073d36c30b6daa593cdc42322cd10f6dacdec10d049ac9a0`, `tree_sha256` `1ba13c2ce8fe58a4cd97e2b4913e32cfc6fc347545f1be638474b371e368e7a3`); 네이티브 SDK·GDExtension 없음(아키텍처 무관 순수 GDScript; 로컬 MCP 서버 연결 시 호스트 `uv` / Python `>=3.11,<3.15`로 `godot-ai==4.4.2` 실행) | [MIT](../addons/godot_ai/LICENSE) | 기본 활성화(2026-11-27 추가). 업스트림 `docs/verification/godot-builds-v1.json`의 Godot **4.7.2**(Linux·macOS·Windows) 자격 검증 및 로컬 Linux 4.7.2 RSA-4096 서명·import·GUI 에디터 로드·회귀 검사 확인. 모든 export preset의 `exclude_filter`(`addons/godot_ai/*`)와 `GodotAIStripAutoload`로 배포 결과물에서는 제외됨 |
+| 외부 런타임 Godot addon / native SDK | 없음 | N/A | 미설치 |
 
-최신 버전 점검(2026-11-04): 공식 build 저장소 기준 최신 stable은 **4.7.2**이며 4.7.3은 없다. 4.8은 `4.8-beta2`까지 공개된 개발 버전이라 채택하지 않는다. CI의 GitHub Actions는 Node 24 런타임의 `checkout@v5`, `cache@v5`, `upload-artifact@v6`을 사용한다.
+최신 버전 점검(2026-11-04, Godot AI는 2026-11-27): 공식 build 저장소 기준 최신 stable은 **4.7.2**이며 4.7.3은 없다. 4.8은 `4.8-beta2`까지 공개된 개발 버전이라 채택하지 않는다. Godot AI는 2026-11-16 공개된 서명 릴리스 **4.4.2**를 채택했다(플러그인 업데이트는 파일을 덮어쓰지 않고 에디터 **Godot AI** 독의 **Update**를 사용한다). CI의 GitHub Actions는 Node 24 런타임의 `checkout@v5`, `cache@v5`, `upload-artifact@v6`을 사용한다.
 
 Godot 버전의 기준 출처는 `.godot-version`과 `GameConfig.ENGINE_VERSION` 두 곳이며 모두 4.7.2다(`tools/configure.gd`와 `tools/write_engine_notices.gd`는 `GameConfig.ENGINE_VERSION`을 참조하고 `.godot-version` 일치를 검사한다). 엔진을 바꾸려면 모바일 프로젝트와 기준을 함께 결정하고 코드·export·문서의 일치 여부를 확인한다.
 

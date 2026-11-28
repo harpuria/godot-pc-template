@@ -6,12 +6,13 @@
 
 - Godot **4.7.2 Standard**(내장 GDScript). 확인한 빌드: `4.7.2.stable.official.ed1daf0bf`.
 - 실행 파일을 만들려면 같은 **4.7.2** export templates.
-- 외부 addon, Python, C#/.NET, Steam SDK 없이 Editor와 데모가 실행된다.
+- 외부 런타임 addon, C#/.NET, Steam SDK 없이 Editor와 데모가 실행된다. 기본 활성화된 **Godot AI**(`addons/godot_ai`, v4.4.2) 독으로 외부 AI(MCP) 클라이언트를 연결할 때만 [uv](https://docs.astral.sh/uv/)가 필요하다(`uv` 없이도 Editor·테스트·export는 그대로 동작한다).
 - 명령의 `godot`는 PATH의 Godot 실행 파일이다. macOS 기본 경로는 `/Applications/Godot.app/Contents/MacOS/Godot`다.
 
 ## 폴더 구조
 
 ```text
+addons/godot_ai/       기본 활성화된 Godot AI MCP 에디터 플러그인 (export에서는 자동 제외)
 autoload/              앱 수명의 공통 관리자 8개 (GameConfig, Settings, SaveManager, AudioManager,
                        WindowManager, InputManager, SceneManager, App)
 core/                  입력 기본값, OS·저장 위치, JSON 저장, Debug 로그
